@@ -8,7 +8,8 @@ const tabConfig = {
   'Activitats': { icon: 'clipboard-list', desc: 'Crea i configura les activitats i les seves ponderacions.' },
   'Gestió de grups': { icon: 'users', desc: 'Organitza els teus grups i classes.' },
   'Gestió usuaris': { icon: 'user-plus', desc: 'Gestiona la fitxa de l’alumnat i la importació.' },
-  'Notes': { icon: 'edit-3', desc: 'Introdueix les qualificacions directament a la matriu.' },
+  'Notes': { icon: 'edit-3', desc: 'Introdueix les qualificacions directament per activitat.' },
+  'Seguiment': { icon: 'table', desc: 'Visió global de totes les notes per projecte i alumne.' },
   'Resultats': { icon: 'bar-chart-2', desc: 'Consulta els resultats calculats i l’estat dels RA.' },
   'Informes': { icon: 'file-text', desc: 'Genera fitxes de seguiment detallades per alumne.' }
 };
@@ -113,7 +114,8 @@ function render() {
   if (tab == 'Activitats') A.innerHTML = activitatsView();
   if (tab == 'Gestió de grups') A.innerHTML = grupsView();
   if (tab == 'Gestió usuaris') A.innerHTML = usuarisView();
-  if (tab == 'Notes') A.innerHTML = notesMatrixView();
+  if (tab == 'Notes') A.innerHTML = notesView();
+  if (tab == 'Seguiment') A.innerHTML = seguimentView();
   if (tab == 'Resultats') A.innerHTML = resultatsMatrixView();
   if (tab == 'Informes') A.innerHTML = informesView();
   
@@ -197,22 +199,32 @@ function raCard(ra) {
     <article class="ra-card ${Number(ra.actiu) === 0 ? 'off' : ''}">
       <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
         <label class="check-title" style="margin:0"><input type="checkbox" ${Number(ra.actiu) !== 0 ? 'checked' : ''} onchange="toggleRA(${ra.id},this.checked)"><span class="ra-badge">${ra.codi}</span></label>
-        <input class="weight-input" style="width: 80px; margin:0" type="number" step="0.01" value="${ra.pes ?? 0}" onchange="upd('ras',${ra.id},{pes:Number(this.value)}).then(load)">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <input class="weight-input" style="width: 70px; margin:0; text-align: right; font-weight: 700; color: var(--primary)" type="number" step="0.01" value="${ra.pes ?? 0}" onchange="upd('ras',${ra.id},{pes:Number(this.value)}).then(load)">
+          <span style="font-size: 12px; color: var(--text-muted); font-weight: 600">%</span>
+        </div>
       </header>
-      <p class="ra-desc" style="font-size: 13px; line-height: 1.4; margin-bottom: 12px">${ra.descripcio || ''}</p>
-      <div class="status ${Math.abs(totalCa - 100) < 0.05 || activeCas.length === 0 ? 'ok' : 'warn'}" style="padding: 6px 10px; font-size: 12px">
-        <span>CA actius: ${totalCa.toFixed(2)}%</span>
+      <div class="ra-desc-box">
+        <p class="desc-tiny" style="margin:0">${ra.descripcio || 'Sense descripció'}</p>
       </div>
-      <div class="ca-list">
+      <div class="status ${Math.abs(totalCa - 100) < 0.05 || activeCas.length === 0 ? 'ok' : 'warn'}" style="padding: 6px 10px; font-size: 12px; margin-bottom: 12px">
+        <span>CA actius: <strong>${totalCa.toFixed(2)}%</strong></span>
+      </div>
+      <div class="ca-list" style="display: flex; flex-direction: column; gap: 6px">
         ${cas.map(c => `
-          <div class="ca-row ${Number(c.actiu) === 0 ? 'off' : ''}" style="display: flex; gap: 8px; align-items: center; background: #f8fafc; padding: 6px; border-radius: 8px; margin-bottom: 4px">
-            <input type="checkbox" style="width: auto; margin:0" ${Number(c.actiu) !== 0 ? 'checked' : ''} onchange="toggleCA(${c.id},${ra.id},this.checked)">
-            <strong style="font-size: 12px">${c.codi}</strong>
-            <input type="number" style="width: 60px; margin:0; padding: 4px" step="0.01" value="${c.pes ?? 0}" onchange="upd('cas',${c.id},{pes:Number(this.value)}).then(load)">
+          <div class="ca-row ${Number(c.actiu) === 0 ? 'off' : ''}" style="display: flex; gap: 10px; align-items: flex-start; background: #f8fafc; padding: 10px; border-radius: 10px">
+            <input type="checkbox" style="width: auto; margin: 4px 0 0" ${Number(c.actiu) !== 0 ? 'checked' : ''} onchange="toggleCA(${c.id},${ra.id},this.checked)">
+            <div style="flex: 1">
+              <strong style="font-size: 12px; display: block; color: var(--text-main)">${c.codi}</strong>
+              <p class="desc-tiny" style="margin: 2px 0 0; line-height: 1.3">${c.descripcio || 'Sense descripció'}</p>
+            </div>
+            <input type="number" style="width: 55px; margin:0; padding: 4px; font-size: 12px; text-align: center" step="0.01" value="${c.pes ?? 0}" onchange="upd('cas',${c.id},{pes:Number(this.value)}).then(load)">
           </div>
         `).join('')}
       </div>
-      <button class="secondary mini" style="width: 100%; margin-top: 8px" onclick="normalitzarCA(${ra.id})">Repartir CA</button>
+      <button class="secondary mini" style="width: 100%; margin-top: 12px; justify-content: center" onclick="normalitzarCA(${ra.id})">
+        <i data-lucide="refresh-cw" style="width: 14px; height: 14px"></i> Repartir CA
+      </button>
     </article>
   `;
 }
@@ -544,25 +556,125 @@ async function createTipusActivitat() {
   });
 }
 
-function notesMatrixView() {
-  const projectes = [...S.projectes].sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
-  const notes = new Map((S.notes_projecte || []).map(n => [`${n.alumne_id}-${n.projecte_id}`, n]));
+function notesView() {
+  if (!selectedProjectId && S.projectes?.length) selectedProjectId = S.projectes[0].id;
+  const p = S.projectes.find(x => String(x.id) === String(selectedProjectId));
   const filterId = S.filterGroupId;
   const filteredAlumnes = filterId ? S.alumnes.filter(a => a.grup_id == filterId) : S.alumnes;
-  return wrap('Matriu de Qualificacions', `
-    <div class="module-toolbar"><select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()"><option value="all">Tots els grups</option>${S.grups.map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}</select></div>
-    <div class="table-scroll"><table class="matrix"><thead><tr><th class="sticky-col">Alumne</th>${projectes.map(p => `<th>${p.nom}<br><small>${p.tipus_nom || ''}</small></th>`).join('')}</tr></thead><tbody>${filteredAlumnes.map(a => `<tr><th class="sticky-col">${a.cognoms}, ${a.nom}</th>${projectes.map(p => { const n = notes.get(`${a.id}-${p.id}`); return `<td><input class="grade" style="margin:0; padding:6px; font-size:13px; width:60px" value="${n?.nota ?? ''}" onchange="saveGrade(${a.id},${p.id},this.value)"></td>` }).join('')}</tr>`).join('')}</tbody></table></div>
-  `, 'edit-3');
+  const notes = new Map((S.notes_projecte || []).map(n => [`${n.alumne_id}-${n.projecte_id}`, n]));
+
+  return `
+    <div class="activities-layout">
+      <div class="sidebar-content">
+        ${wrap('Selecciona Activitat', `
+          <div class="project-list-rich">
+            ${S.projectes.map(x => `
+              <div class="project-card-item ${x.id == selectedProjectId ? 'active' : ''}" onclick="selectedProjectId=${x.id};render()">
+                <div class="project-card-icon">
+                  <i data-lucide="${x.tipus_nom?.toLowerCase().includes('sintesi') ? 'star' : 'file-text'}"></i>
+                </div>
+                <div class="project-card-info">
+                  <strong>${x.nom}</strong>
+                  <div class="project-card-meta">
+                    <span class="pill mini">${x.modul_codi}</span>
+                    <span class="type-tag">${x.tipus_nom || 'Genèrica'}</span>
+                  </div>
+                </div>
+              </div>
+            `).join('') || '<div class="notice">No hi ha activitats creades.</div>'}
+          </div>
+        `, 'edit-3')}
+      </div>
+      <div class="main-content-scroll">
+        ${p ? `
+          <div class="card">
+            <div class="module-toolbar" style="grid-template-columns: 1fr auto">
+              <div class="module-summary">
+                <strong>Notes: ${p.nom}</strong><span>${p.modul_codi} · ${p.tipus_nom || ''}</span>
+              </div>
+              <div class="actions">
+                <select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()">
+                  <option value="all">Tots els grups</option>
+                  ${S.grups.map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}
+                </select>
+                <button onclick="saveBulkGrades(${p.id})"><i data-lucide="save"></i> Gravar tot</button>
+              </div>
+            </div>
+            
+            <div class="table-scroll" style="margin-top: 20px">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Alumne</th>
+                    <th style="width: 120px; text-align: center">Nota (0-10)</th>
+                    <th>Observacions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filteredAlumnes.map(a => {
+                    const n = notes.get(`${a.id}-${p.id}`);
+                    return `
+                      <tr>
+                        <td><strong>${a.cognoms}, ${a.nom}</strong></td>
+                        <td style="text-align: center">
+                          <input class="grade-input" data-alumne="${a.id}" type="text" inputmode="decimal" 
+                            style="width: 70px; text-align: center; font-weight: 700; color: var(--primary); margin: 0" 
+                            value="${n?.nota ?? ''}">
+                        </td>
+                        <td>
+                          <input class="obs-input" data-alumne="${a.id}" type="text" 
+                            style="width: 100%; margin: 0" 
+                            value="${n?.observacions || ''}" placeholder="Opcional...">
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : `
+          <div class="empty-state">
+            <i data-lucide="edit-3" size="48"></i>
+            <h3>Qualificacions</h3>
+            <p>Selecciona una activitat de la llista per introduir les notes de l'alumnat.</p>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
 }
 
-async function saveGrade(alumneId, projecteId, value) { 
-  await api('/api/notes_projecte/upsert', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alumne_id: alumneId, projecte_id: projecteId, nota: value }) }); 
-  toast('Nota guardada.'); 
-  await recalc(); // Recalcular automàticament per mantenir resultats al dia
+async function saveBulkGrades(projectId) {
+  const inputs = document.querySelectorAll('.grade-input');
+  const obsInputs = document.querySelectorAll('.obs-input');
+  const promises = [];
+  
+  for (let i = 0; i < inputs.length; i++) {
+    const alumneId = inputs[i].dataset.alumne;
+    const nota = inputs[i].value;
+    const observacions = obsInputs[i].value;
+    
+    promises.push(api('/api/notes_projecte/upsert', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ alumne_id: alumneId, projecte_id: projectId, nota, observacions }) 
+    }));
+  }
+  
+  try {
+    await Promise.all(promises);
+    toast('Totes les notes s’han desat correctament.');
+    await recalc();
+  } catch (e) {
+    toast('Error en desar algunes notes: ' + e.message, 'error');
+  }
 }
+
 async function recalc() { 
   S.notes_ra_calculades = await api('/api/recalcular', { method: 'POST' }); 
   toast('Notes recalculades amb èxit.'); 
+  await load();
   render(); 
 }
 
@@ -641,6 +753,55 @@ function generateReportHTML(data) {
       <div class="report-body">${resultats.map(ra => `<div class="ra-report-block"><div class="ra-report-header ${ra.superat ? 'superat' : 'no-superat'}"><div class="ra-info"><span class="ra-badge">${ra.ra_codi}</span><strong>${ra.modul_codi} · ${ra.ra_codi}</strong></div><div class="ra-score"><small>Nota RA</small><strong>${ra.nota_final != null ? ra.nota_final.toFixed(2) : '—'}</strong></div></div><table class="report-table"><thead><tr><th>CA</th><th style="text-align:center">Nota</th><th style="text-align:center">Estat</th></tr></thead><tbody>${ra.cas.map(ca => `<tr><td>${ca.codi} · ${ca.descripcio || ''}</td><td style="text-align:center">${ca.nota != null ? ca.nota.toFixed(2) : '—'}</td><td style="text-align:center"><span class="pill ${ca.superat ? 'ok' : 'ko'}">${ca.superat ? 'Assolit' : 'No assolit'}</span></td></tr>`).join('')}</tbody></table></div>`).join('')}</div>
     </div>
   `;
+}
+
+function seguimentView() {
+  const projectes = [...S.projectes].sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
+  const notes = new Map((S.notes_projecte || []).map(n => [`${n.alumne_id}-${n.projecte_id}`, n]));
+  const filterId = S.filterGroupId;
+  const filteredAlumnes = filterId ? S.alumnes.filter(a => a.grup_id == filterId) : S.alumnes;
+
+  return wrap('Llençol de Seguiment', `
+    <div class="module-toolbar">
+      <select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()">
+        <option value="all">Tots els grups</option>
+        ${S.grups.map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}
+      </select>
+      <div class="actions">
+        <button class="secondary" onclick="window.print()"><i data-lucide="printer"></i> Imprimir</button>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th class="sticky-col">Alumne</th>
+            ${projectes.map(p => `
+              <th title="${p.nom} (${p.modul_codi})">
+                <div style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px">
+                  ${p.nom}
+                </div>
+                <small style="font-size: 9px; color: var(--text-muted); font-weight: 500">${p.tipus_nom || ''}</small>
+              </th>
+            `).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredAlumnes.map(a => `
+            <tr>
+              <th class="sticky-col">${a.cognoms}, ${a.nom}</th>
+              ${projectes.map(p => {
+                const n = notes.get(`${a.id}-${p.id}`);
+                const notaVal = (n && n.nota != null) ? Number(n.nota) : null;
+                const cls = notaVal !== null ? (notaVal >= 5 ? 'okcell' : 'kocell') : '';
+                return `<td class="${cls}" style="text-align: center; font-weight: 600">${fmt(notaVal)}</td>`;
+              }).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `, 'table');
 }
 
 load().catch(console.error);
