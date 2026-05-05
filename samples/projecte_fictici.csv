@@ -1,0 +1,5 @@
+modul_codi,tipus_nom,projecte_nom,descripcio,ra_codi,ra_pes,ca_codi,ca_pes
+MP04,UF1,Projecte de prova,Aquest és un projecte d'exemple importat via CSV,RA1,40,CA1.1,20
+MP04,UF1,Projecte de prova,Aquest és un projecte d'exemple importat via CSV,RA1,40,CA1.2,20
+MP04,UF1,Projecte de prova,Aquest és un projecte d'exemple importat via CSV,RA2,60,CA2.1,30
+MP04,UF1,Projecte de prova,Aquest és un projecte d'exemple importat via CSV,RA2,60,CA2.2,30

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de notes Alumnes · Premium</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i data-lucide="graduation-cap"></i>
+                    <span>EvalApp <strong>v11</strong></span>
+                </div>
+            </div>
+            <nav id="tabs"></nav>
+            <div class="sidebar-footer">
+                <button class="btn-recalc" onclick="recalc()">
+                    <i data-lucide="refresh-cw"></i>
+                    <span>Recalcular tot</span>
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="page-info">
+                    <h1 id="current-tab-title">Resum</h1>
+                    <p id="current-tab-desc">Benvingut al teu panell d'avaluació.</p>
+                </div>
+                <div class="user-profile">
+                    <span id="modul-active-tag" class="pill">Carregant...</span>
+                </div>
+            </header>
+
+            <div id="app" class="content-body"></div>
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script src="app.js"></script>
+    <script>
+        // Inicialitzar icones de Lucide després que el DOM es carregui
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>
