@@ -243,4 +243,4 @@ app.get('/api/informe/alumne/:id', ok(async req => {
   return { alumne: a, resultats };
 }));
 
-app.listen(PORT,()=>console.log('App local v11: http://localhost:'+PORT));
+app.listen(PORT,()=>console.log('App local v12: http://localhost:'+PORT));

@@ -1,6 +1,13 @@
 const $ = s => document.querySelector(s);
 let S = { editingGroupId: null, editingAlumneId: null, filterGroupId: null, selectedAlumneIdForReport: null };
 
+// --- CONFIGURACIÓ SUPABASE ---
+const SUPABASE_URL = 'https://cuvpsnbtsylmqtgiekko.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dnBzbmJ0c3lsbXF0Z2lla2tvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzQ1NzAsImV4cCI6MjA5MzY1MDU3MH0.hfZaycaGNh6vSUgko5_LOpriW98zl-pvhSVP3GQXdF8';
+const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+// -----------------------------
+
+
 const tabConfig = {
   'Resum': { icon: 'home', desc: 'Visió general del curs i estadístiques clau.' },
   'Currículum': { icon: 'book-open', desc: 'Configuració visual de mòduls, RA i criteris d’avaluació.' },
@@ -40,13 +47,49 @@ async function api(url, opt) {
 async function load() {
   renderTabs();
   render();
+  if (!supabase) return;
+
   try {
-    const data = await api('/api/bootstrap');
+    // Carreguem totes les taules en paral·lel
+    const tables = ['grups', 'alumnes', 'moduls', 'ras', 'cas', 'tipus_activitat', 'projectes', 'projecte_ra', 'projecte_ca', 'notes_projecte'];
+    const results = await Promise.all(tables.map(t => supabase.from(t).select('*')));
+
+    const data = {};
+    tables.forEach((t, i) => {
+      if (results[i].error) throw results[i].error;
+      data[t] = results[i].data;
+    });
+
+    // Cas especial per a les notes calculades (ja que abans es feia al servidor)
+    const { data: notesCalc, error: errCalc } = await supabase.from('notes_ra_calculades').select('*, alumnes(nom, cognoms), ras(codi), moduls(codi)');
+    if (errCalc) console.warn("Encara no hi ha notes calculades");
+    data.notes_ra_calculades = (notesCalc || []).map(n => ({
+      ...n,
+      alumne_nom: n.alumnes?.nom,
+      alumne_cognoms: n.alumnes?.cognoms,
+      ra_codi: n.ras?.codi,
+      modul_codi: n.moduls?.codi
+    }));
+
+    // Enriquiment de dades (el que abans feia el SQL amb JOINS)
+    data.alumnes = data.alumnes.map(a => ({ ...a, grup_nom: data.grups.find(g => g.id == a.grup_id)?.nom }));
+    data.projectes = data.projectes.map(p => {
+      const t = data.tipus_activitat.find(x => x.id == p.tipus_id);
+      return {
+        ...p,
+        modul_codi: data.moduls.find(m => m.id == p.modul_id)?.codi,
+        tipus_nom: t?.nom,
+        tipus_requereix_minim: t?.requereix_minim || 0,
+        tipus_nota_minima: t?.nota_minima || 5
+      };
+    });
+
     S = { ...S, ...data };
     renderTabs();
     render();
   } catch (e) {
-    console.error("Error carregant dades inicials:", e);
+    console.error("Error carregant dades de Supabase:", e);
+    toast("Error de connexió: " + e.message, 'error');
   }
 }
 
@@ -89,21 +132,24 @@ function showWeight(v) { const n = parseWeight(v); return Number.isInteger(n) ? 
 function setWeight(el, v) { if (el) el.value = Number(v || 0).toFixed(2) }
 
 async function create(t, data) {
-  await api('/api/' + t, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const { error } = await supabase.from(t).insert([data]);
+  if (error) throw error;
   toast('S’ha creat el registre correctament.');
   await load()
 }
 
 async function del(t, id) {
   if (confirm('Eliminar registre?')) {
-    await api('/api/' + t + '/' + id, { method: 'DELETE' });
+    const { error } = await supabase.from(t).delete().eq('id', id);
+    if (error) throw error;
     toast('Registre eliminat.');
     await load()
   }
 }
 
 async function upd(t, id, data) {
-  await api('/api/' + t + '/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const { error } = await supabase.from(t).update(data).eq('id', id);
+  if (error) throw error;
   toast('Canvis desats.');
   await load()
 }
@@ -111,11 +157,11 @@ async function upd(t, id, data) {
 function render() {
   const A = $('#app');
   if (!A) return;
-  
+
   // Actualitzar Top Bar
   $('#current-tab-title').textContent = tab;
   $('#current-tab-desc').textContent = tabConfig[tab].desc;
-  
+
   if (!selectedModulId && S.moduls?.length) selectedModulId = S.moduls[0].id;
   const activeModul = S.moduls?.find(m => m.id == selectedModulId);
   $('#modul-active-tag').textContent = activeModul ? `${activeModul.codi} · ${activeModul.nom}` : 'Cap mòdul seleccionat';
@@ -130,7 +176,7 @@ function render() {
   if (tab == 'Seguiment') A.innerHTML = seguimentView();
   if (tab == 'Resultats') A.innerHTML = resultatsMatrixView();
   if (tab == 'Informes') A.innerHTML = informesView();
-  
+
   if (window.lucide) lucide.createIcons();
 }
 
@@ -144,7 +190,7 @@ function dashboardView() {
     </div>
     <div class="card" style="margin-top: 24px">
       <h2><i data-lucide="info"></i> Estat de l’avaluació</h2>
-      <p>Actualment l’aplicació v11 gestiona <strong>${S.ras?.length || 0} RA</strong> i <strong>${S.cas?.length || 0} CA</strong> repartits en <strong>${S.moduls?.length || 0} mòduls</strong>.</p>
+      <p>Actualment l’aplicació v12 gestiona <strong>${S.ras?.length || 0} RA</strong> i <strong>${S.cas?.length || 0} CA</strong> repartits en <strong>${S.moduls?.length || 0} mòduls</strong>.</p>
       <div class="actions">
         <button onclick="tab='Activitats';renderTabs();render()">Gestionar Activitats</button>
         <button class="secondary" onclick="recalc()">Actualitzar Notes</button>
@@ -247,20 +293,42 @@ async function normalitzarModul(id, show = true) { await api('/api/moduls/' + id
 async function normalitzarCA(raId, show = true) { const cas = S.cas.filter(c => c.ra_id == raId); const act = cas.filter(c => Number(c.actiu) !== 0); const pes = act.length ? 100 / act.length : 0; for (const c of cas) { await upd('cas', c.id, { pes: Number(c.actiu) !== 0 ? pes : 0 }) } if (show) toast('Ponderació dels CA repartida.'); await load() }
 
 function importCurriculum() { return wrap('Importació CSV Currículum', `<p class="muted small">Format: modul_codi,modul_nom,modul_hores,modul_curs,ra_codi,ra_pes,ra_nota_minima,ra_descripcio,ca_codi,ca_pes,ca_descripcio</p><input id="csvcurr" type="file" accept=".csv"><button onclick="importarCurriculum()">Importar</button>`, 'upload-cloud') }
-async function importarCurriculum() { 
-  const f = $('#csvcurr').files[0]; 
-  if (!f) { toast('Selecciona un fitxer.', 'error'); return } 
-  const fd = new FormData(); 
-  fd.append('file', f); 
-  try {
-    const r = await fetch('/api/import/curriculum', { method: 'POST', body: fd });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Error en la importació');
-    toast('Currículum importat correctament.'); 
-    await load();
-  } catch (e) {
-    toast(e.message, 'error');
+async function importarCurriculum() {
+  const f = $('#csvcurr').files[0];
+  if (!f) { toast('Selecciona un fitxer.', 'error'); return }
+
+  const text = await f.text();
+  // Utilitzem una llibreria simple per parsejar CSV si la tinguéssim, 
+  // però com que és un entorn tancat, farem un parse manual bàsic:
+  const rows = text.split('\n').map(r => r.split(',')).filter(r => r.length > 1);
+  const headers = rows.shift();
+
+  toast('Important currículum...');
+  for (const row of rows) {
+    const r = {}; headers.forEach((h, i) => r[h.trim()] = row[i]?.trim());
+
+    // 1. Mòdul
+    let { data: m } = await supabase.from('moduls').select('id').eq('codi', r.modul_codi).single();
+    if (!m) {
+      const { data: newM } = await supabase.from('moduls').insert([{ codi: r.modul_codi, nom: r.modul_nom, hores: r.modul_hores, curs: r.modul_curs }]).select().single();
+      m = newM;
+    }
+
+    // 2. RA
+    let { data: ra } = await supabase.from('ras').select('id').eq('modul_id', m.id).eq('codi', r.ra_codi).single();
+    if (!ra) {
+      const { data: newRa } = await supabase.from('ras').insert([{ modul_id: m.id, codi: r.ra_codi, descripcio: r.ra_descripcio, pes: r.ra_pes, nota_minima: r.ra_nota_minima }]).select().single();
+      ra = newRa;
+    }
+
+    // 3. CA
+    if (r.ca_codi) {
+      await supabase.from('cas').upsert([{ ra_id: ra.id, codi: r.ca_codi, descripcio: r.ca_descripcio, pes: r.ca_pes }], { onConflict: 'ra_id,codi' });
+    }
   }
+
+  toast('Currículum importat correctament.');
+  await load();
 }
 
 function activitatsView() {
@@ -323,17 +391,50 @@ function formProjectes() {
 async function importarProjectes() {
   const f = $('#csvproj').files[0];
   if (!f) return toast('Selecciona un fitxer.', 'error');
-  const fd = new FormData();
-  fd.append('file', f);
-  try {
-    const r = await fetch('/api/import/projectes', { method: 'POST', body: fd });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Error en la importació');
-    toast(`Importats ${j.importats} projectes.`);
-    await load();
-  } catch (e) {
-    toast(e.message, 'error');
+
+  const text = await f.text();
+  const rows = text.split('\n').map(r => r.split(',')).filter(r => r.length > 1);
+  const headers = rows.shift();
+
+  toast('Important activitats...');
+  for (const row of rows) {
+    const r = {}; headers.forEach((h, i) => r[h.trim()] = row[i]?.trim());
+    if (!r.modul_codi || !r.nom) continue;
+
+    const { data: m } = await supabase.from('moduls').select('id').eq('codi', r.modul_codi).single();
+    if (!m) continue;
+
+    // Busquem o creem el tipus d'activitat
+    let { data: t } = await supabase.from('tipus_activitat').select('id').eq('nom', r.tipus_nom || r.tipus).single();
+    if (!t && (r.tipus_nom || r.tipus)) {
+      const { data: newT } = await supabase.from('tipus_activitat').insert([{ nom: r.tipus_nom || r.tipus, actiu: 1 }]).select().single();
+      t = newT;
+    }
+
+    // Creem l'activitat (projecte)
+    const { data: p } = await supabase.from('projectes').insert([{
+      modul_id: m.id,
+      tipus_id: t?.id,
+      nom: r.nom,
+      descripcio: r.descripcio || ''
+    }]).select().single();
+
+    // Si el CSV porta RA/CA, els assignem
+    if (r.ra_codi && p) {
+      const { data: ra } = await supabase.from('ras').select('id').eq('modul_id', m.id).eq('codi', r.ra_codi).single();
+      if (ra) {
+        await supabase.from('projecte_ra').insert([{ projecte_id: p.id, ra_id: ra.id, pes: Number(r.ra_pes || 0) }]);
+        if (r.ca_codi) {
+          const { data: ca } = await supabase.from('cas').select('id').eq('ra_id', ra.id).eq('codi', r.ca_codi).single();
+          if (ca) {
+            await supabase.from('projecte_ca').insert([{ projecte_id: p.id, ca_id: ca.id, pes: Number(r.ca_pes || 0) }]);
+          }
+        }
+      }
+    }
   }
+  toast('Activitats importades.');
+  await load();
 }
 
 function ponderacionsComponent(p) {
@@ -383,7 +484,7 @@ function projectRaCard(ra, raWeights, caWeights) {
   const caTotal = cas.reduce((a, c) => a + Number(caWeights[c.id] || 0), 0);
   const invalid = caTotal > rw + 0.0001;
   const progress = Math.min(100, rw);
-  
+
   return `
     <article class="ra-card-premium ${selected ? 'selected' : ''} ${invalid ? 'invalid' : ''}" data-ra="${ra.id}" onclick="toggleProjectRAFromCard(event,${ra.id})">
       <header class="ra-card-header">
@@ -404,9 +505,9 @@ function projectRaCard(ra, raWeights, caWeights) {
       </div>
 
       <div class="ca-list-premium">
-        ${cas.map(c => { 
-          const cw = caWeights[c.id] || 0; 
-          return `
+        ${cas.map(c => {
+    const cw = caWeights[c.id] || 0;
+    return `
             <div class="ca-item-premium ${cw > 0 ? 'selected' : ''}" data-ca="${c.id}" onclick="toggleProjectCAFromRow(event,${c.id},${ra.id})">
               <div class="ca-check-group-premium">
                 <input type="checkbox" class="pca-check" data-id="${c.id}" data-ra="${ra.id}" ${cw > 0 ? 'checked' : ''} onchange="onProjectSelectionChanged('ca',${ra.id})">
@@ -419,8 +520,8 @@ function projectRaCard(ra, raWeights, caWeights) {
                 <input class="pca-weight premium-input-sm" data-id="${c.id}" data-ra="${ra.id}" type="text" value="${showWeight(cw)}" onclick="event.stopPropagation()" oninput="markCAByWeight(${c.id},${ra.id});updateProjectTotals()">
               </div>
             </div>
-          ` 
-        }).join('')}
+          `
+  }).join('')}
       </div>
     </article>
   `;
@@ -518,23 +619,38 @@ async function saveAlumne() {
   S.editingAlumneId = null; await load();
 }
 
-async function importar() { 
-  const f = $('#csv').files[0]; 
-  if (!f) return toast('Selecciona un fitxer.', 'error'); 
-  const fd = new FormData(); 
-  fd.append('file', f); 
-  try {
-    const r = await fetch('/api/import/alumnes', { method: 'POST', body: fd });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Error en la importació');
-    toast('Usuaris importats.'); 
-    await load();
-  } catch (e) {
-    toast(e.message, 'error');
+async function importar() {
+  const f = $('#csv').files[0];
+  if (!f) return toast('Selecciona un fitxer.', 'error');
+
+  const text = await f.text();
+  const rows = text.split('\n').map(r => r.split(',')).filter(r => r.length > 1);
+  const headers = rows.shift();
+
+  toast('Important alumnes...');
+  for (const row of rows) {
+    const r = {}; headers.forEach((h, i) => r[h.trim()] = row[i]?.trim());
+    const grupNom = r.grup_classe || r.grup || r.grup_nom || 'Sense grup';
+
+    let { data: g } = await supabase.from('grups').select('id').eq('nom', grupNom).single();
+    if (!g) {
+      const { data: newG } = await supabase.from('grups').insert([{ nom: grupNom }]).select().single();
+      g = newG;
+    }
+
+    await supabase.from('alumnes').insert([{
+      numero: r.numero || '',
+      grup_id: g.id,
+      nom: r.nom,
+      cognoms: r.cognoms,
+      data_naixement: r.data_naixement || null
+    }]);
   }
+  toast('Usuaris importats.');
+  await load();
 }
 
-function tipusActivitatView() { 
+function tipusActivitatView() {
   return `
     <div class="grid">
       <div class="wide">
@@ -556,16 +672,16 @@ function tipusActivitatView() {
       </div>
       <div class="wide">
         ${(() => {
-          const actius = (S.tipus_activitat || []).filter(t => Number(t.actiu) !== 0);
-          const total = actius.reduce((acc, t) => acc + Number(t.pes_defecte || 0), 0);
-          const isOk = Math.abs(total - 100) < 0.01;
-          return `
+      const actius = (S.tipus_activitat || []).filter(t => Number(t.actiu) !== 0);
+      const total = actius.reduce((acc, t) => acc + Number(t.pes_defecte || 0), 0);
+      const isOk = Math.abs(total - 100) < 0.01;
+      return `
             <div class="status ${isOk ? 'ok' : 'warn'}" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center">
               <span>Suma de ponderacions actives: <strong>${total.toFixed(2)}%</strong></span>
               ${isOk ? '<span><i data-lucide="check-circle" style="width:16px; vertical-align:middle"></i> Correcte</span>' : '<span><i data-lucide="alert-triangle" style="width:16px; vertical-align:middle"></i> Ha de sumar 100%</span>'}
             </div>
           `;
-        })()}
+    })()}
         ${wrap('Configuració de Tipus', `
           <div class="table-scroll">
             <table>
@@ -603,12 +719,12 @@ async function createTipusActivitat() {
   const nom = val('new-tn');
   const pes = num('new-tp');
   if (!nom) return toast('Has de posar un nom al tipus.', 'error');
-  await create('tipus_activitat', { 
-    nom, 
-    pes_defecte: pes || 0, 
-    requereix_minim: 0, 
-    nota_minima: 5, 
-    actiu: 1 
+  await create('tipus_activitat', {
+    nom,
+    pes_defecte: pes || 0,
+    requereix_minim: 0,
+    nota_minima: 5,
+    actiu: 1
   });
 }
 
@@ -668,8 +784,8 @@ function notesView() {
                 </thead>
                 <tbody>
                   ${filteredAlumnes.map(a => {
-                    const n = notes.get(`${a.id}-${p.id}`);
-                    return `
+    const n = notes.get(`${a.id}-${p.id}`);
+    return `
                       <tr>
                         <td><strong>${a.cognoms}, ${a.nom}</strong></td>
                         <td style="text-align: center">
@@ -684,7 +800,7 @@ function notesView() {
                         </td>
                       </tr>
                     `;
-                  }).join('')}
+  }).join('')}
                 </tbody>
               </table>
             </div>
@@ -704,34 +820,104 @@ function notesView() {
 async function saveBulkGrades(projectId) {
   const inputs = document.querySelectorAll('.grade-input');
   const obsInputs = document.querySelectorAll('.obs-input');
-  const promises = [];
-  
+  const grades = [];
+
   for (let i = 0; i < inputs.length; i++) {
     const alumneId = inputs[i].dataset.alumne;
-    const nota = inputs[i].value;
+    const notaRaw = inputs[i].value;
     const observacions = obsInputs[i].value;
-    
-    promises.push(api('/api/notes_projecte/upsert', { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ alumne_id: alumneId, projecte_id: projectId, nota, observacions }) 
-    }));
+
+    if (notaRaw === '') {
+      await supabase.from('notes_projecte').delete().eq('alumne_id', alumneId).eq('projecte_id', projectId);
+      continue;
+    }
+
+    const nota = Number(String(notaRaw).replace(',', '.'));
+    if (!Number.isFinite(nota) || nota < 0 || nota > 10) {
+      toast(`Nota invàlida per a l'alumne ${alumneId}`, 'error');
+      continue;
+    }
+
+    grades.push({ alumne_id: alumneId, projecte_id: projectId, nota, observacions });
   }
-  
+
   try {
-    await Promise.all(promises);
+    if (grades.length > 0) {
+      // Supabase UPSERT (insert or update based on unique constraint)
+      const { error } = await supabase.from('notes_projecte').upsert(grades, { onConflict: 'alumne_id,projecte_id' });
+      if (error) throw error;
+    }
     toast('Totes les notes s’han desat correctament.');
     await recalc();
   } catch (e) {
-    toast('Error en desar algunes notes: ' + e.message, 'error');
+    toast('Error en desar les notes: ' + e.message, 'error');
   }
 }
 
-async function recalc() { 
-  S.notes_ra_calculades = await api('/api/recalcular', { method: 'POST' }); 
-  toast('Notes recalculades amb èxit.'); 
+async function recalc() {
+  toast('Recalculant notes...');
+  const { data: alumnes } = await supabase.from('alumnes').select('*');
+  const { data: ras } = await supabase.from('ras').select('*').eq('actiu', 1);
+  const { data: allNotes } = await supabase.from('notes_projecte').select('*, projectes(*)');
+  const { data: allProjRa } = await supabase.from('projecte_ra').select('*');
+  const { data: allTipus } = await supabase.from('tipus_activitat').select('*');
+
+  const results = [];
+  for (const a of alumnes) {
+    for (const ra of ras) {
+      // Filtrem les notes que pertanyen a aquest RA i alumne
+      const projRaList = allProjRa.filter(pr => pr.ra_id == ra.id);
+      const projIds = projRaList.map(pr => pr.projecte_id);
+
+      const relevantNotes = allNotes.filter(n => n.alumne_id == a.id && projIds.includes(n.projecte_id));
+
+      let total = 0, pes = 0, bloq = 0, detall = [];
+      for (const n of relevantNotes) {
+        const p = n.projectes;
+        const pr = projRaList.find(x => x.projecte_id == p.id);
+        const t = allTipus.find(x => x.id == p.tipus_id);
+
+        const reqMin = t?.requereix_minim || 0;
+        const limRa = t?.limita_ra || 0;
+        const notaMin = t?.nota_minima || 5;
+        const pPes = pr?.pes || 0;
+
+        total += Number(n.nota) * Number(pPes);
+        pes += Number(pPes);
+        detall.push(`${p.nom}: ${n.nota} x ${pPes}%`);
+
+        if (reqMin && limRa && Number(n.nota) < Number(notaMin)) bloq = 1;
+      }
+
+      const calc = pes > 0 ? total / pes : null;
+      let final = calc;
+      let superat = (calc !== null && calc >= (ra.nota_minima || 5)) ? 1 : 0;
+
+      if (calc !== null && bloq) {
+        if (calc >= 5) final = 4;
+        superat = 0;
+      }
+
+      results.push({
+        alumne_id: a.id,
+        ra_id: ra.id,
+        nota_calculada: calc,
+        nota_final: final,
+        superat,
+        bloquejat_sintesi: bloq,
+        detall: detall.join('; ')
+      });
+    }
+  }
+
+  // Guardem els resultats a Supabase
+  await supabase.from('notes_ra_calculades').delete().not('id', 'is', null); // Netejem taula
+  const { error } = await supabase.from('notes_ra_calculades').insert(results);
+
+  if (error) toast('Error al desar càlculs: ' + error.message, 'error');
+  else toast('Notes recalculades amb èxit.');
+
   await load();
-  render(); 
 }
 
 function resultatsMatrixView() {
@@ -797,7 +983,28 @@ function informesView() {
 
 function renderInformeAlumne(id) {
   const targetId = `report-${id}`;
-  setTimeout(async () => { const el = document.getElementById(targetId); if (!el) return; try { const data = await api(`/api/informe/alumne/${id}`); el.innerHTML = generateReportHTML(data); } catch (e) { el.innerHTML = `<div class="status warn">Error: ${e.message}</div>`; } }, 50);
+  setTimeout(async () => {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    try {
+      // Obtenim dades directament de Supabase
+      const { data: alumne } = await supabase.from('alumnes').select('*, grups(nom)').eq('id', id).single();
+      const { data: notesRa } = await supabase.from('notes_ra_calculades').select('*, ras(*, moduls(*))').eq('alumne_id', id);
+
+      const resultats = notesRa.map(n => ({
+        ra_codi: n.ras.codi,
+        modul_codi: n.ras.moduls.codi,
+        descripcio: n.ras.descripcio,
+        nota_final: n.nota_final,
+        superat: n.superat,
+        cas: [] // Per simplificar el primer informe, o podríem fer més queries
+      }));
+
+      el.innerHTML = generateReportHTML({ alumne: { ...alumne, grup_nom: alumne.grups.nom }, resultats });
+    } catch (e) {
+      el.innerHTML = `<div class="status warn">Error: ${e.message}</div>`;
+    }
+  }, 50);
   return `<div id="${targetId}"><div class="notice">Carregant...</div></div>`;
 }
 
@@ -847,11 +1054,11 @@ function seguimentView() {
             <tr>
               <th class="sticky-col">${a.cognoms}, ${a.nom}</th>
               ${projectes.map(p => {
-                const n = notes.get(`${a.id}-${p.id}`);
-                const notaVal = (n && n.nota != null) ? Number(n.nota) : null;
-                const cls = notaVal !== null ? (notaVal >= 5 ? 'okcell' : 'kocell') : '';
-                return `<td class="${cls}" style="text-align: center; font-weight: 600">${fmt(notaVal)}</td>`;
-              }).join('')}
+    const n = notes.get(`${a.id}-${p.id}`);
+    const notaVal = (n && n.nota != null) ? Number(n.nota) : null;
+    const cls = notaVal !== null ? (notaVal >= 5 ? 'okcell' : 'kocell') : '';
+    return `<td class="${cls}" style="text-align: center; font-weight: 600">${fmt(notaVal)}</td>`;
+  }).join('')}
             </tr>
           `).join('')}
         </tbody>
