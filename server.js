@@ -38,10 +38,24 @@ initDb();
 
 
 // Funció genèrica per fer queries
-const query = (text, params) => pool.query(text, params);
+const query = (text, params) => {
+  return pool.query(text, params).catch(err => {
+    console.error('❌ Error en la query:', text);
+    console.error('Detall:', err.message);
+    throw err;
+  });
+};
 
 app.use(express.json({ limit: '10mb' }));
+
+// Logging de peticions per depurar
+app.use((req, res, next) => {
+  console.log(`${new Date().toLocaleTimeString()} - ${req.method} ${req.url}`);
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Helpers de resposta
@@ -75,12 +89,13 @@ const listSql = {
   moduls: 'SELECT * FROM moduls ORDER BY actiu DESC, codi',
   ras: 'SELECT r.*, m.codi as modul_codi, m.nom as modul_nom FROM ras r JOIN moduls m ON m.id=r.modul_id ORDER BY m.codi, r.codi',
   cas: 'SELECT c.*, r.codi as ra_codi, m.codi as modul_codi FROM cas c JOIN ras r ON r.id=c.ra_id JOIN moduls m ON m.id=r.modul_id ORDER BY m.codi, r.codi, c.codi',
-  tipus_activitat: 'SELECT *, COALESCE(actiu,1) as actiu FROM tipus_activitat ORDER BY actiu DESC, nom',
+  tipus_activitat: 'SELECT * FROM tipus_activitat ORDER BY actiu DESC, nom',
   projectes: 'SELECT p.*, m.codi as modul_codi, t.nom as tipus_nom, COALESCE(t.requereix_minim, 0) as tipus_requereix_minim, COALESCE(t.nota_minima, 5) as tipus_nota_minima, COALESCE(t.limita_ra, 0) as tipus_limita_ra FROM projectes p JOIN moduls m ON m.id=p.modul_id LEFT JOIN tipus_activitat t ON t.id=p.tipus_id ORDER BY m.codi, p.created_at, p.nom',
   projecte_ra: 'SELECT pr.*, p.nom as projecte_nom, r.codi as ra_codi FROM projecte_ra pr JOIN projectes p ON p.id=pr.projecte_id JOIN ras r ON r.id=pr.ra_id ORDER BY p.nom, r.codi',
   projecte_ca: 'SELECT pc.*, p.nom as projecte_nom, c.codi as ca_codi, r.codi as ra_codi FROM projecte_ca pc JOIN projectes p ON p.id=pc.projecte_id JOIN cas c ON c.id=pc.ca_id JOIN ras r ON r.id=c.ra_id ORDER BY p.nom, r.codi, c.codi',
   notes_projecte: 'SELECT n.*, a.nom as alumne_nom, a.cognoms as alumne_cognoms, p.nom as projecte_nom FROM notes_projecte n JOIN alumnes a ON a.id=n.alumne_id JOIN projectes p ON p.id=n.projecte_id ORDER BY a.cognoms, p.nom'
 };
+
 
 // Generació automàtica de CRUD
 for (const [t, cols] of Object.entries(tables)) {

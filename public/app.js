@@ -21,7 +21,7 @@ async function load() {
     if (window.lucide) window.lucide.createIcons();
   } catch (e) {
     console.error("Error carregant dades:", e);
-    toast("Error de connexió", 'error');
+    toast("Error: " + e.message, 'error');
   }
 }
 
