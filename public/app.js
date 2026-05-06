@@ -282,42 +282,56 @@ async function importarCurriculum(input) {
 }
 
 function activitatsView() {
+  const mods = S.moduls || [];
+  if (!selectedModulId && mods.length) selectedModulId = mods[0].id;
+  const projectesFiltrats = (S.projectes || []).filter(p => p.modul_id == selectedModulId);
+
   return `
+    <div class="card" style="margin-bottom: 24px">
+      <div style="display:flex; gap: 16px; align-items:center;">
+        <div style="flex:1">
+          <label>Mòdul d'activitats</label>
+          <select onchange="selectedModulId=this.value;render()" style="margin:0">${opts(mods, 'codi')}</select>
+        </div>
+        <div style="margin-top:20px">
+           <span class="pill">${projectesFiltrats.length} activitats</span>
+        </div>
+      </div>
+    </div>
+
     <div class="grid">
       <div class="card">
         <h2><i data-lucide="plus-circle"></i> Nova Activitat</h2>
         <div style="display:grid; gap:12px">
-          <div><label>Mòdul</label><select id="pm" style="margin:0">${opts(S.moduls)}</select></div>
-          <div><label>Tipus</label><select id="pt" style="margin:0">${opts(S.tipus_activitat)}</select></div>
-          <div><label>Nom de l'activitat</label><input id="pn" placeholder="Ex: UF1 - Projecte final" style="margin:0"></div>
+          <input type="hidden" id="pm" value="${selectedModulId}">
+          <div><label>Tipus d'activitat</label><select id="pt" style="margin:0">${opts(S.tipus_activitat)}</select></div>
+          <div><label>Nom de l'activitat</label><input id="pn" placeholder="Ex: Projecte Final" style="margin:0"></div>
           <button style="margin-top:10px" onclick="create('projectes',{modul_id:num('pm'),tipus_id:num('pt'),nom:val('pn')})">
             <i data-lucide="save"></i> Crear activitat
           </button>
         </div>
       </div>
       <div class="wide">
-        ${wrap('Llistat d\'activitats del curs', `
+        ${wrap('Llistat d\'activitats del mòdul', `
           <div class="recent-activity-table">
             <table>
               <thead>
                 <tr>
-                  <th>Mòdul</th>
                   <th>Activitat</th>
                   <th>Tipus</th>
                   <th style="text-align:right">Accions</th>
                 </tr>
               </thead>
               <tbody>
-                ${(S.projectes || []).map(p => `
+                ${projectesFiltrats.map(p => `
                   <tr>
-                    <td><span class="pill">${p.modul_codi}</span></td>
                     <td><strong>${p.nom}</strong></td>
                     <td><span class="type-tag">${p.tipus_nom || 'General'}</span></td>
                     <td style="text-align:right">
                       <button class="btn-icon-danger" onclick="del('projectes',${p.id})"><i data-lucide="trash-2"></i></button>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="4" style="text-align:center; padding:40px; color:#94a3b8">No hi ha activitats creades.</td></tr>'}
+                `).join('') || '<tr><td colspan="3" style="text-align:center; padding:40px; color:#94a3b8">No hi ha activitats en aquest mòdul.</td></tr>'}
               </tbody>
             </table>
           </div>
