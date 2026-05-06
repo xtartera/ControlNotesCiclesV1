@@ -1033,7 +1033,29 @@ function resultatsMatrixView() {
   const by = new Map(rows.map(r => [`${r.alumne_id}-${r.ra_id}`, r]));
   const filterId = S.filterGroupId;
   const filteredAlumnes = filterId ? S.alumnes.filter(a => a.grup_id == filterId) : S.alumnes;
-  return wrap('Resultats per RA', `
+
+  const headerCells = ras.map(r => `<th><strong>${r.codi}</strong></th>`).join('');
+
+  const bodyRows = filteredAlumnes.map(a => {
+    let vals = [];
+    const cells = ras.map(r => {
+      const x = by.get(`${a.id}-${r.id}`);
+      if (x && x.nota_final != null) vals.push(Number(x.nota_final));
+      const cls = x ? (x.superat ? 'okcell' : 'kocell') : '';
+      const notaText = x ? fmt(x.nota_final) : '—';
+      return `<td class="${cls}">${notaText}</td>`;
+    }).join('');
+
+    const final = vals.length ? vals.reduce((p, c) => p + c, 0) / vals.length : null;
+    return `
+      <tr>
+        <th class="sticky-col">${a.cognoms}, ${a.nom}</th>
+        ${cells}
+        <td><strong>${fmt(final)}</strong></td>
+      </tr>`;
+  }).join('');
+
+  const html = `
     <div class="module-toolbar">
       <select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()">
         <option value="all">Tots els grups</option>
@@ -1044,8 +1066,23 @@ function resultatsMatrixView() {
         <button class="secondary" onclick="tab='Informes';renderTabs();render()">Veure Informes</button>
       </div>
     </div>
-    <div class="table-scroll"><table class="matrix"><thead><tr><th class="sticky-col">Alumne</th>${ras.map(r => `<th><strong>${r.codi}</strong></th>`).join('')}<th>Final</th></tr></thead><tbody>${filteredAlumnes.map(a => { let vals = []; const cells = ras.map(r => { const x = by.get(`${a.id}-${r.id}`); if (x && x.nota_final != null) vals.push(Number(x.nota_final)); const cls = x ? (x.superat ? 'okcell' : 'kocell') : ''; return `<td class="${cls}">${x ? fmt(x.nota_final) : '—'}</td>` }).join(''); const final = vals.length ? vals.reduce((p, c) => p + c, 0) / vals.length : null; return `<tr><th class="sticky-col">${a.cognoms}, ${a.nom}</th>${cells}<td><strong>${fmt(final)}</strong></td></tr>` }).join('')}</tbody></table></div>
-  `, 'bar-chart-2');
+    <div class="table-scroll">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th class="sticky-col">Alumne</th>
+            ${headerCells}
+            <th>Final</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bodyRows}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  return wrap('Resultats per RA', html, 'bar-chart-2');
 }
 
 function informesView() {
@@ -1117,10 +1154,47 @@ function renderInformeAlumne(id) {
 
 function generateReportHTML(data) {
   const { alumne, resultats } = data;
+  
+  const reportBody = resultats.map(ra => {
+    const raStatusClass = ra.superat ? 'superat' : 'no-superat';
+    const raScore = ra.nota_final != null ? ra.nota_final.toFixed(2) : '—';
+    
+    const casRows = ra.cas.map(ca => {
+      const caScore = ca.nota != null ? ca.nota.toFixed(2) : '—';
+      const caStatusClass = ca.superat ? 'ok' : 'ko';
+      const caStatusText = ca.superat ? 'Assolit' : 'No assolit';
+      return `
+        <tr>
+          <td>${ca.codi} · ${ca.descripcio || ''}</td>
+          <td style="text-align:center">${caScore}</td>
+          <td style="text-align:center"><span class="pill ${caStatusClass}">${caStatusText}</span></td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <div class="ra-report-block">
+        <div class="ra-report-header ${raStatusClass}">
+          <div class="ra-info"><span class="ra-badge">${ra.ra_codi}</span><strong>${ra.modul_codi} · ${ra.ra_codi}</strong></div>
+          <div class="ra-score"><small>Nota RA</small><strong>${raScore}</strong></div>
+        </div>
+        <table class="report-table">
+          <thead><tr><th>CA</th><th style="text-align:center">Nota</th><th style="text-align:center">Estat</th></tr></thead>
+          <tbody>${casRows}</tbody>
+        </table>
+      </div>`;
+  }).join('');
+
   return `
     <div class="report-card">
-      <header class="report-header"><div><h1>Informe de seguiment</h1><p><strong>Usuari:</strong> ${alumne.nom} ${alumne.cognoms}</p><p><strong>Grup:</strong> ${alumne.grup_nom}</p></div><button onclick="window.print()" class="secondary"><i data-lucide="printer"></i> Imprimir</button></header>
-      <div class="report-body">${resultats.map(ra => `<div class="ra-report-block"><div class="ra-report-header ${ra.superat ? 'superat' : 'no-superat'}"><div class="ra-info"><span class="ra-badge">${ra.ra_codi}</span><strong>${ra.modul_codi} · ${ra.ra_codi}</strong></div><div class="ra-score"><small>Nota RA</small><strong>${ra.nota_final != null ? ra.nota_final.toFixed(2) : '—'}</strong></div></div><table class="report-table"><thead><tr><th>CA</th><th style="text-align:center">Nota</th><th style="text-align:center">Estat</th></tr></thead><tbody>${ra.cas.map(ca => `<tr><td>${ca.codi} · ${ca.descripcio || ''}</td><td style="text-align:center">${ca.nota != null ? ca.nota.toFixed(2) : '—'}</td><td style="text-align:center"><span class="pill ${ca.superat ? 'ok' : 'ko'}">${ca.superat ? 'Assolit' : 'No assolit'}</span></td></tr>`).join('')}</tbody></table></div>`).join('')}</div>
+      <header class="report-header">
+        <div>
+          <h1>Informe de seguiment</h1>
+          <p><strong>Usuari:</strong> ${alumne.nom} ${alumne.cognoms}</p>
+          <p><strong>Grup:</strong> ${alumne.grup_nom}</p>
+        </div>
+        <button onclick="window.print()" class="secondary"><i data-lucide="printer"></i> Imprimir</button>
+      </header>
+      <div class="report-body">${reportBody}</div>
     </div>
   `;
 }
