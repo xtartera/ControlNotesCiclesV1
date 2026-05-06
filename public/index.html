@@ -61,6 +61,18 @@
                 console.warn("Lucide no s'ha carregat, les icones no es veuran.");
             }
         });
+
+        // Forçar la renderització inicial tan bon punt es pugui
+        window.addEventListener('load', () => {
+            console.log("Iniciant aplicació...");
+            if (typeof renderTabs === 'function') {
+                renderTabs();
+                render();
+                if (typeof load === 'function') load();
+            } else {
+                console.error("La funció renderTabs no està disponible. app.js s'ha carregat?");
+            }
+        });
     </script>
 </body>
 </html>
