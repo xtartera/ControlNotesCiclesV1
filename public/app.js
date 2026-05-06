@@ -1171,7 +1171,7 @@ function seguimentView() {
         </tbody>
       </table>
     </div>
-  `;
+  `, 'layout');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
