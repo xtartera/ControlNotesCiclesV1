@@ -1,6 +1,6 @@
-alert('APP CARREGADA');
 const $ = s => document.querySelector(s);
 let S = { editingGroupId: null, editingAlumneId: null, filterGroupId: null, selectedAlumneIdForReport: null };
+
 
 // --- CONFIGURACIÓ SUPABASE ---
 const SUPABASE_URL = 'https://cuvpsnbtsylmqtgiekko.supabase.co';
@@ -1147,16 +1147,9 @@ function seguimentView() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  console.log("DOM carregat. Iniciant app...");
-  try {
-    renderTabs();
-    render();
-    console.log("Renders inicials fets. Carregant dades...");
-    load().catch(e => {
-      console.error("Error a load():", e);
-    });
-  } catch (e) {
-    console.error("Error crític d'arrencada:", e);
-    alert("Error d'arrencada: " + e.message);
-  }
+  renderTabs();
+  render();
+  load().catch(e => {
+    console.error("Error carregant l'aplicació:", e);
+  });
 });

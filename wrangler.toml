@@ -1,5 +1,0 @@
-name = "control-notes-cicles-v1"
-compatibility_date = "2024-04-01"
-
-[site]
-bucket = "./public"
