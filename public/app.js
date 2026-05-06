@@ -539,6 +539,9 @@ function usuarisView() {
 }
 
 function tipusActivitatView() {
+  const tipus = S.tipus_activitat || [];
+  const pesTotal = tipus.reduce((acc, t) => acc + (Number(t.pes_defecte) || 0), 0);
+
   return `
     <div class="grid">
       <div class="card">
@@ -551,7 +554,10 @@ function tipusActivitatView() {
             <input type="checkbox" id="tl" style="width:auto; margin:0">
             <label for="tl" style="margin:0">Limita la nota del RA si no s'arriba al mínim</label>
           </div>
-          <button style="margin-top:10px" onclick="create('tipus_activitat',{nom:val('tn'),pes_defecte:num('tp'),nota_minima:num('tm'),limita_ra:$('#tl').checked?1:0})">
+          <div class="info-box ${pesTotal > 100 ? 'danger' : ''}" style="margin-top:10px">
+            <strong>Pes total assignat: ${pesTotal}%</strong> (Màxim 100%)
+          </div>
+          <button style="margin-top:10px" onclick="createTipusActivitat()">
             <i data-lucide="save"></i> Guardar tipus
           </button>
         </div>
@@ -570,7 +576,7 @@ function tipusActivitatView() {
                 </tr>
               </thead>
               <tbody>
-                ${(S.tipus_activitat || []).map(t => `
+                ${tipus.map(t => `
                   <tr>
                     <td><strong>${t.nom}</strong></td>
                     <td style="text-align:center"><span class="pill">${t.pes_defecte}%</span></td>
@@ -589,6 +595,23 @@ function tipusActivitatView() {
     </div>
   `;
 }
+
+async function createTipusActivitat() {
+  const nom = val('tn');
+  const pes = num('tp');
+  const notaMin = num('tm');
+  const limita = $('#tl').checked ? 1 : 0;
+
+  const pesActual = (S.tipus_activitat || []).reduce((acc, t) => acc + (Number(t.pes_defecte) || 0), 0);
+  
+  if (pesActual + pes > 100) {
+    alert(`Error: La suma total dels pesos (${pesActual + pes}%) no pot superar el 100%. Redueix el pes o modifica els existents.`);
+    return;
+  }
+
+  await create('tipus_activitat', { nom, pes_defecte: pes, nota_minima: notaMin, limita_ra: limita });
+}
+
 
 
 function seguimentView() { return wrap('Seguiment', `<p>Proximament...</p>`, 'layout'); }
