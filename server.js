@@ -16,6 +16,19 @@ const pool = new Pool({
   }
 });
 
+// Inicialització de la base de dades
+async function initDb() {
+  try {
+    const sql = fs.readFileSync(path.join(__dirname, 'sql', 'schema.sql'), 'utf8');
+    await pool.query(sql);
+    console.log('✅ Base de dades inicialitzada correctament');
+  } catch (err) {
+    console.error('❌ Error inicialitzant la base de dades:', err);
+  }
+}
+initDb();
+
+
 // Funció genèrica per fer queries
 const query = (text, params) => pool.query(text, params);
 
