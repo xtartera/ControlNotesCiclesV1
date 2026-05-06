@@ -93,9 +93,9 @@ body {
     letter-spacing: -0.5px;
 }
 
-.logo-text strong {
-    background: var(--primary);
-    color: white;
+.logo-text .v-tag {
+    background: #fbbf24;
+    color: #0f172a;
     padding: 2px 6px;
     border-radius: 6px;
     font-size: 11px;
