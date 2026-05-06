@@ -375,7 +375,16 @@ function raCard(ra) {
 
 async function toggleRA(id, checked) { await upd('ras', id, { actiu: checked ? 1 : 0 }); await normalitzarModul(selectedModulId, false) }
 async function toggleCA(id, raId, checked) { await upd('cas', id, { actiu: checked ? 1 : 0 }); await normalitzarCA(raId, false) }
-async function normalitzarModul(id, show = true) { await api('/api/moduls/' + id + '/normalitzar', { method: 'POST' }); if (show) toast('Ponderació repartida.'); await load() }
+async function normalitzarModul(modulId, show = true) {
+  const ras = S.ras.filter(r => r.modul_id == modulId && Number(r.actiu) !== 0);
+  if (!ras.length) return;
+  const pes = 100 / ras.length;
+  for (const r of ras) {
+    await supabase.from('ras').update({ pes }).eq('id', r.id);
+  }
+  if (show) toast('Ponderació repartida.');
+  await load();
+}
 async function normalitzarCA(raId, show = true) { const cas = S.cas.filter(c => c.ra_id == raId); const act = cas.filter(c => Number(c.actiu) !== 0); const pes = act.length ? 100 / act.length : 0; for (const c of cas) { await upd('cas', c.id, { pes: Number(c.actiu) !== 0 ? pes : 0 }) } if (show) toast('Ponderació dels CA repartida.'); await load() }
 
 function importCurriculum() { return wrap('Importació CSV Currículum', `<p class="muted small">Format: modul_codi,modul_nom,modul_hores,modul_curs,ra_codi,ra_pes,ra_nota_minima,ra_descripcio,ca_codi,ca_pes,ca_descripcio</p><input id="csvcurr" type="file" accept=".csv"><button onclick="importarCurriculum()">Importar</button>`, 'upload-cloud') }
@@ -642,13 +651,24 @@ function updateProjectTotals() {
 }
 
 async function saveProjectWeights(projecteId) {
-  const ras = [...document.querySelectorAll('.pra-weight')].map(i => ({ ra_id: Number(i.dataset.id), pes: parseWeight(i.value) })).filter(x => x.pes > 0);
-  const cas = [...document.querySelectorAll('.pca-weight')].map(i => ({ ca_id: Number(i.dataset.id), ra_id: Number(i.dataset.ra), pes: parseWeight(i.value) })).filter(x => x.pes > 0);
-  const sumRa = ras.reduce((a, x) => a + x.pes, 0); const errors = caValidationErrors();
+  const ras = [...document.querySelectorAll('.pra-weight')].map(i => ({ projecte_id: projecteId, ra_id: Number(i.dataset.id), pes: parseWeight(i.value) })).filter(x => x.pes > 0);
+  const cas = [...document.querySelectorAll('.pca-weight')].map(i => ({ projecte_id: projecteId, ca_id: Number(i.dataset.id), ra_id: Number(i.dataset.ra), pes: parseWeight(i.value) })).filter(x => x.pes > 0);
+  
+  const sumRa = ras.reduce((a, x) => a + x.pes, 0); 
+  const errors = caValidationErrors();
+  
   if (sumRa > 100.0001) { toast('La ponderació dels RA supera el 100%.', 'error'); return }
   if (errors.length) { toast('Els CA superen el topall del RA.', 'error'); return }
-  await api('/api/projectes/' + projecteId + '/ponderacions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ras, cas }) });
-  toast('Ponderacions gravades.'); await load();
+  
+  // Guardem a Supabase (primer netegem les antigues per a aquest projecte)
+  await supabase.from('projecte_ra').delete().eq('projecte_id', projecteId);
+  await supabase.from('projecte_ca').delete().eq('projecte_id', projecteId);
+  
+  if (ras.length) await supabase.from('projecte_ra').insert(ras);
+  if (cas.length) await supabase.from('projecte_ca').insert(cas);
+  
+  toast('Ponderacions gravades.'); 
+  await load();
 }
 
 // Vistes restants amb estils Premium
@@ -996,8 +1016,9 @@ async function recalc() {
     }
   }
 
-  // Guardem els resultats a Supabase
-  await supabase.from('notes_ra_calculades').delete().not('id', 'is', null); // Netejem taula
+  // Guardem els resultats a Supabase (esborrem tot el d'aquest mòdul o total si cal)
+  await supabase.from('notes_ra_calculades').delete().neq('alumne_id', -1); 
+
   const { error } = await supabase.from('notes_ra_calculades').insert(results);
 
   if (error) toast('Error al desar càlculs: ' + error.message, 'error');
