@@ -327,7 +327,10 @@ function activitatsView() {
                   <tr>
                     <td><strong>${p.nom}</strong></td>
                     <td><span class="type-tag">${p.tipus_nom || 'General'}</span></td>
-                    <td style="text-align:right">
+                    <td style="text-align:right; white-space:nowrap">
+                      <button class="secondary mini" onclick="editProject(${p.id}, '${p.nom}', ${p.tipus_id})" title="Editar nom o tipus">
+                        <i data-lucide="edit-2"></i>
+                      </button>
                       <button class="btn-icon-danger" onclick="del('projectes',${p.id})"><i data-lucide="trash-2"></i></button>
                     </td>
                   </tr>
@@ -339,6 +342,18 @@ function activitatsView() {
       </div>
     </div>
   `;
+}
+
+async function editProject(id, oldNom, oldTipusId) {
+  const nouNom = prompt('Nou nom de l\'activitat:', oldNom);
+  if (nouNom === null) return;
+  
+  // Aquí podríem fer un selector més complex, però per simplicitat usem prompt o un petit "hack" 
+  // En una app premium de veritat, obriríem un modal. Per ara ho farem directe:
+  const nouTipusId = prompt('ID del nou tipus (deixa-ho igual per no canviar):', oldTipusId);
+  if (nouTipusId === null) return;
+
+  await upd('projectes', id, { nom: nouNom, tipus_id: Number(nouTipusId) });
 }
 
 function notesView() {
