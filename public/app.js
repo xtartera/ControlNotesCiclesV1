@@ -543,7 +543,7 @@ function tipusActivitatView() {
   const pesTotal = tipus.reduce((acc, t) => acc + (Number(t.pes_defecte) || 0), 0);
 
   return `
-    <div class="grid">
+    <div class="types-grid">
       <div class="card">
         <h2><i data-lucide="${S.editingTipusId ? 'edit' : 'plus-circle'}"></i> ${S.editingTipusId ? 'Modificar' : 'Nou'} Tipus</h2>
         <div style="display:grid; gap:12px">

@@ -712,6 +712,35 @@ td {
     margin-bottom: 12px;
 }
 
+/* Tipus Activitat Compact Layout */
+.types-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .types-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.types-grid .card {
+    padding: 16px;
+}
+
+.types-grid input, .types-grid select {
+    padding: 8px;
+    font-size: 14px;
+}
+
+.types-grid label {
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+
 /* Dashboard Premium */
 .dashboard-grid {
     display: grid;
