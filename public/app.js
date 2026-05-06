@@ -2,7 +2,7 @@ const $ = s => document.querySelector(s);
 let S = { editingGroupId: null, editingAlumneId: null, filterGroupId: null, selectedAlumneIdForReport: null };
 
 // --- CONFIGURACIÓ SUPABASE ---
-const SUPABASE_URL = 'https://cuvpsnbtsylmqtgiekko.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://cuvpsnbtsylmqtgiekko.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dnBzbmJ0c3lsbXF0Z2lla2tvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzQ1NzAsImV4cCI6MjA5MzY1MDU3MH0.hfZaycaGNh6vSUgko5_LOpriW98zl-pvhSVP3GQXdF8';
 const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 // -----------------------------
