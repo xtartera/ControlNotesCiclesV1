@@ -8,20 +8,27 @@ const { parse } = require('csv-parse/sync');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connexió a PostgreSQL (Render ens donarà DATABASE_URL)
+// Connexió a PostgreSQL
+if (!process.env.DATABASE_URL) {
+  console.error('❌ ERROR: No s\'ha trobat la variable DATABASE_URL.');
+  console.log('💡 Si estàs en local, recorda configurar-la o passar-li al terminal.');
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Necessari per a Render/Postgres
-  }
+  ssl: process.env.DATABASE_URL?.includes('render.com') ? { rejectUnauthorized: false } : false
 });
 
 // Inicialització de la base de dades
 async function initDb() {
+  if (!process.env.DATABASE_URL) return;
   try {
-    const sql = fs.readFileSync(path.join(__dirname, 'sql', 'schema.sql'), 'utf8');
-    await pool.query(sql);
-    console.log('✅ Base de dades inicialitzada correctament');
+    const sqlPath = path.join(__dirname, 'sql', 'schema.sql');
+    if (fs.existsSync(sqlPath)) {
+      const sql = fs.readFileSync(sqlPath, 'utf8');
+      await pool.query(sql);
+      console.log('✅ Base de dades inicialitzada correctament');
+    }
   } catch (err) {
     console.error('❌ Error inicialitzant la base de dades:', err);
   }

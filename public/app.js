@@ -175,24 +175,72 @@ function dashboardView() {
 function curriculumView() {
   const mods = S.moduls || [];
   if (!selectedModulId && mods.length) selectedModulId = mods[0].id;
-  const m = mods.find(x => x.id == selectedModulId);
   const ras = (S.ras || []).filter(r => r.modul_id == selectedModulId);
   
   return `
-    <div class="module-toolbar">
-      <select onchange="selectedModulId=this.value;render()">${opts(mods, 'codi')}</select>
-      <button onclick="api('/api/moduls/'+selectedModulId+'/normalitzar', {method:'POST'}).then(load)">Repartir Pesos</button>
-      <div style="margin-left: auto"><input id="csvcurr" type="file" style="display:none" onchange="importarCurriculum(this)"><button class="secondary" onclick="$('#csvcurr').click()">Importar CSV</button></div>
+    <div class="card" style="margin-bottom: 24px">
+      <div style="display:flex; gap: 16px; align-items:center;">
+        <div style="flex:1">
+          <label>Mòdul actiu</label>
+          <select onchange="selectedModulId=this.value;render()" style="margin:0">${opts(mods, 'codi')}</select>
+        </div>
+        <div style="display:flex; gap: 10px; margin-top: 20px">
+          <button class="secondary" onclick="api('/api/moduls/'+selectedModulId+'/normalitzar', {method:'POST'}).then(load)">
+            <i data-lucide="scale"></i> Repartir Pesos
+          </button>
+          <input id="csvcurr" type="file" style="display:none" onchange="importarCurriculum(this)">
+          <button class="secondary" onclick="$('#csvcurr').click()">
+            <i data-lucide="upload"></i> Importar CSV
+          </button>
+        </div>
+      </div>
     </div>
-    <div class="ra-grid">${ras.map(ra => `
-      <article class="ra-card">
-        <header style="display:flex; justify-content:space-between"><strong>${ra.codi}</strong> <input type="number" value="${ra.pes}" style="width:60px" onchange="upd('ras',${ra.id},{pes:this.value})">%</header>
-        <p class="desc-tiny">${ra.descripcio || ''}</p>
-        <div class="ca-list">${(S.cas || []).filter(c => c.ra_id == ra.id).map(c => `
-          <div class="ca-row"><span>${c.codi}</span><input type="number" value="${c.pes}" style="width:50px" onchange="upd('cas',${c.id},{pes:this.value})">%</div>
-        `).join('')}</div>
-      </article>
-    `).join('')}</div>
+
+    <div class="ra-grid">
+      ${ras.map(ra => `
+        <article class="ra-card-premium ${ra.pes != 100 ? '' : ''}">
+          <div class="ra-card-header">
+            <div class="ra-title-group">
+              <span class="ra-badge-premium">${ra.codi}</span>
+              <div class="ra-weight-input-group">
+                <input type="number" value="${ra.pes}" class="premium-input" onchange="upd('ras',${ra.id},{pes:this.value})">
+                <span class="unit">%</span>
+              </div>
+            </div>
+            <button class="btn-icon-danger" onclick="del('ras',${ra.id})"><i data-lucide="trash-2"></i></button>
+          </div>
+          <div class="ra-desc-box">
+             <p class="desc-tiny" style="margin:0; font-weight:500;">${ra.descripcio || 'Sense descripció.'}</p>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" style="width: ${ra.pes}%"></div>
+          </div>
+          <div class="ca-list-premium">
+            ${(S.cas || []).filter(c => c.ra_id == ra.id).map(c => `
+              <div class="ca-item-premium">
+                <div class="ca-check-group-premium">
+                  <span class="ca-codi">${c.codi}</span>
+                  <span class="desc-tiny">${c.descripcio || ''}</span>
+                </div>
+                <div class="ca-input-group-premium">
+                  <input type="number" value="${c.pes}" class="premium-input-sm" onchange="upd('cas',${c.id},{pes:this.value})">
+                  <span class="unit">%</span>
+                </div>
+              </div>
+            `).join('')}
+            <button class="btn mini secondary" style="margin-top:10px; width:100%" onclick="alert('Afegir CA manualment properament')">
+              <i data-lucide="plus"></i> Afegir CA
+            </button>
+          </div>
+        </article>
+      `).join('') || `
+        <div class="wide empty-state">
+          <i data-lucide="book-open"></i>
+          <h3>No hi ha RAs</h3>
+          <p>Importa un fitxer CSV o afegeix-los manualment.</p>
+        </div>
+      `}
+    </div>
   `;
 }
 
@@ -207,23 +255,107 @@ async function importarCurriculum(input) {
 function activitatsView() {
   return `
     <div class="grid">
-      ${wrap('Nova Activitat', `<label>Mòdul</label><select id="pm">${opts(S.moduls)}</select><label>Tipus</label><select id="pt">${opts(S.tipus_activitat)}</select><label>Nom</label><input id="pn"><button onclick="create('projectes',{modul_id:num('pm'),tipus_id:num('pt'),nom:val('pn')})">Afegir</button>`, 'plus')}
-      <div class="wide">${wrap('Llistat', `<table><thead><tr><th>Mòdul</th><th>Nom</th><th>Tipus</th><th></th></tr></thead><tbody>${(S.projectes || []).map(p => `<tr><td>${p.modul_codi}</td><td><strong>${p.nom}</strong></td><td>${p.tipus_nom || ''}</td><td><button class="danger mini" onclick="del('projectes',${p.id})">X</button></td></tr>`).join('')}</tbody></table>`, 'list')}</div>
+      <div class="card">
+        <h2><i data-lucide="plus-circle"></i> Nova Activitat</h2>
+        <div style="display:grid; gap:12px">
+          <div><label>Mòdul</label><select id="pm" style="margin:0">${opts(S.moduls)}</select></div>
+          <div><label>Tipus</label><select id="pt" style="margin:0">${opts(S.tipus_activitat)}</select></div>
+          <div><label>Nom de l'activitat</label><input id="pn" placeholder="Ex: UF1 - Projecte final" style="margin:0"></div>
+          <button style="margin-top:10px" onclick="create('projectes',{modul_id:num('pm'),tipus_id:num('pt'),nom:val('pn')})">
+            <i data-lucide="save"></i> Crear activitat
+          </button>
+        </div>
+      </div>
+      <div class="wide">
+        ${wrap('Llistat d\'activitats del curs', `
+          <div class="recent-activity-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mòdul</th>
+                  <th>Activitat</th>
+                  <th>Tipus</th>
+                  <th style="text-align:right">Accions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(S.projectes || []).map(p => `
+                  <tr>
+                    <td><span class="pill">${p.modul_codi}</span></td>
+                    <td><strong>${p.nom}</strong></td>
+                    <td><span class="type-tag">${p.tipus_nom || 'General'}</span></td>
+                    <td style="text-align:right">
+                      <button class="btn-icon-danger" onclick="del('projectes',${p.id})"><i data-lucide="trash-2"></i></button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="4" style="text-align:center; padding:40px; color:#94a3b8">No hi ha activitats creades.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `, 'list')}
+      </div>
     </div>
   `;
 }
 
 function notesView() {
   if (!selectedProjectId && S.projectes?.length) selectedProjectId = S.projectes[0].id;
+  const projecte = S.projectes?.find(p => p.id == selectedProjectId);
   const alumnes = S.alumnes || [];
   const notes = new Map((S.notes_projecte || []).map(n => [`${n.alumne_id}-${n.projecte_id}`, n]));
   
   return `
-    <div class="module-toolbar"><select onchange="selectedProjectId=this.value;render()">${opts(S.projectes)}</select></div>
-    ${wrap('Qualificacions', `<table><thead><tr><th>Alumne</th><th>Nota</th><th>Observacions</th></tr></thead><tbody>${alumnes.map(a => {
-      const n = notes.get(`${a.id}-${selectedProjectId}`);
-      return `<tr><td>${a.cognoms}, ${a.nom}</td><td><input type="number" step="0.1" value="${n?.nota||''}" onchange="saveNota(${a.id},${selectedProjectId},this.value)"></td><td><input value="${n?.observacions||''}" onchange="saveNota(${a.id},${selectedProjectId},null,this.value)"></td></tr>`;
-    }).join('')}</tbody></table>`, 'edit-3')}
+    <div class="card" style="margin-bottom: 24px">
+      <div style="display:flex; gap: 16px; align-items:center;">
+        <div style="flex:1">
+          <label>Activitat a avaluar</label>
+          <select onchange="selectedProjectId=this.value;render()" style="margin:0">${opts(S.projectes)}</select>
+        </div>
+        <div style="margin-top:20px">
+           <span class="pill" style="background:var(--primary-light); color:var(--primary)">${projecte?.tipus_nom || 'General'}</span>
+        </div>
+      </div>
+    </div>
+
+    ${wrap('Matriu de qualificacions', `
+      <div class="recent-activity-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Alumne</th>
+              <th style="width:120px; text-align:center">Nota (0-10)</th>
+              <th>Observacions / Feedback</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${alumnes.map(a => {
+              const n = notes.get(`${a.id}-${selectedProjectId}`);
+              const notaVal = n?.nota !== undefined ? n.nota : '';
+              return `
+                <tr>
+                  <td>
+                    <div class="alumne-pill">
+                      <div class="avatar-small">${a.nom[0]}${a.cognoms[0]}</div>
+                      <strong>${a.cognoms}, ${a.nom}</strong>
+                    </div>
+                  </td>
+                  <td style="text-align:center">
+                    <input type="number" step="0.1" min="0" max="10" value="${notaVal}" 
+                      class="premium-input" style="text-align:center; width:80px; border:1px solid #e2e8f0; border-radius:8px"
+                      onchange="saveNota(${a.id},${selectedProjectId},this.value)">
+                  </td>
+                  <td>
+                    <input value="${n?.observacions||''}" placeholder="Escriu un comentari..." 
+                      style="margin:0; border:none; background:#f8fafc; font-size:13px"
+                      onchange="saveNota(${a.id},${selectedProjectId},null,this.value)">
+                  </td>
+                </tr>
+              `;
+            }).join('') || '<tr><td colspan="3" style="text-align:center; padding:40px">Crea alumnes primer.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `, 'edit-3')}
   `;
 }
 
@@ -235,7 +367,41 @@ async function saveNota(aid, pid, nota, obs) {
 }
 
 function resultatsMatrixView() {
-  return wrap('Resultats Finals', `<button onclick="api('/api/recalcular',{method:'POST'}).then(load)">Recalcular Notes</button><div class="table-scroll" style="margin-top:10px"><table><thead><tr><th>Alumne</th>${(S.ras||[]).slice(0,5).map(r => `<th>${r.codi}</th>`).join('')}</tr></thead><tbody>${(S.alumnes||[]).map(a => `<tr><td>${a.cognoms}</td>${(S.ras||[]).slice(0,5).map(r => `<td>—</td>`).join('')}</tr>`).join('')}</tbody></table></div>`, 'bar-chart');
+  const ras = S.ras || [];
+  return `
+    <div class="card" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center">
+      <div>
+        <h2 style="margin:0"><i data-lucide="award"></i> Càlcul de resultats</h2>
+        <p class="desc-tiny">Es calcula la mitjana ponderada de cada RA segons les activitats avaluades.</p>
+      </div>
+      <button onclick="api('/api/recalcular',{method:'POST'}).then(() => { load(); toast('Notes recalculades'); })">
+        <i data-lucide="refresh-cw"></i> Recalcular ara
+      </button>
+    </div>
+
+    ${wrap('Resultats per RA', `
+      <div class="table-scroll">
+        <table class="recent-activity-table">
+          <thead>
+            <tr>
+              <th class="sticky-col">Alumne</th>
+              ${ras.map(r => `<th style="text-align:center">${r.codi}</th>`).join('')}
+              <th style="text-align:center; background:#f1f5f9">Final</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(S.alumnes||[]).map(a => `
+              <tr>
+                <td class="sticky-col"><strong>${a.cognoms}, ${a.nom}</strong></td>
+                ${ras.map(r => `<td style="text-align:center; color:#94a3b8">—</td>`).join('')}
+                <td style="text-align:center; background:#f8fafc"><strong>—</strong></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `, 'bar-chart')}
+  `;
 }
 
 function informesView() {
@@ -243,11 +409,75 @@ function informesView() {
 }
 
 function grupsView() {
-  return wrap('Grups', `<table><thead><tr><th>Nom</th><th>Curs</th><th></th></tr></thead><tbody>${(S.grups||[]).map(g => `<tr><td>${g.nom}</td><td>${g.curs||''}</td><td><button class="danger mini" onclick="del('grups',${g.id})">X</button></td></tr>`).join('')}</tbody></table>`, 'users');
+  return `
+    <div class="grid">
+      <div class="card">
+        <h2><i data-lucide="plus-circle"></i> Nou Grup</h2>
+        <label>Nom del grup</label><input id="gn" placeholder="Ex: 1r DAW A">
+        <label>Curs</label><input id="gc" placeholder="Ex: 2023-24">
+        <button onclick="create('grups',{nom:val('gn'),curs:val('gc')})"><i data-lucide="save"></i> Crear grup</button>
+      </div>
+      <div class="wide">
+        ${wrap('Grups existents', `
+          <div class="recent-activity-table">
+            <table>
+              <thead><tr><th>Grup</th><th>Curs</th><th style="text-align:right">Accions</th></tr></thead>
+              <tbody>
+                ${(S.grups||[]).map(g => `
+                  <tr>
+                    <td><strong>${g.nom}</strong></td>
+                    <td>${g.curs||'—'}</td>
+                    <td style="text-align:right">
+                      <button class="btn-icon-danger" onclick="del('grups',${g.id})"><i data-lucide="trash-2"></i></button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" style="text-align:center; padding:20px">No hi ha grups.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `, 'layers')}
+      </div>
+    </div>
+  `;
 }
 
 function usuarisView() {
-  return wrap('Usuaris', `<table><thead><tr><th>Cognoms, Nom</th><th>Grup</th><th></th></tr></thead><tbody>${(S.alumnes||[]).map(a => `<tr><td>${a.cognoms}, ${a.nom}</td><td>${a.grup_nom}</td><td><button class="danger mini" onclick="del('alumnes',${a.id})">X</button></td></tr>`).join('')}</tbody></table>`, 'user');
+  return `
+    <div class="grid">
+      <div class="card">
+        <h2><i data-lucide="user-plus"></i> Nou Alumne</h2>
+        <label>Nom</label><input id="an">
+        <label>Cognoms</label><input id="ac">
+        <label>Grup</label><select id="ag">${opts(S.grups)}</select>
+        <button onclick="create('alumnes',{nom:val('an'),cognoms:val('ac'),grup_id:num('ag')})"><i data-lucide="user-plus"></i> Afegir alumne</button>
+      </div>
+      <div class="wide">
+        ${wrap('Llistat d\'alumnat', `
+          <div class="recent-activity-table">
+            <table>
+              <thead><tr><th>Alumne</th><th>Grup</th><th style="text-align:right">Accions</th></tr></thead>
+              <tbody>
+                ${(S.alumnes||[]).map(a => `
+                  <tr>
+                    <td>
+                      <div class="alumne-pill">
+                        <div class="avatar-small">${a.nom[0]}${a.cognoms[0]}</div>
+                        <strong>${a.cognoms}, ${a.nom}</strong>
+                      </div>
+                    </td>
+                    <td><span class="pill">${a.grup_nom || 'Sense grup'}</span></td>
+                    <td style="text-align:right">
+                      <button class="btn-icon-danger" onclick="del('alumnes',${a.id})"><i data-lucide="trash-2"></i></button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" style="text-align:center; padding:20px">No hi ha alumnes.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `, 'users')}
+      </div>
+    </div>
+  `;
 }
 
 function tipusActivitatView() {
