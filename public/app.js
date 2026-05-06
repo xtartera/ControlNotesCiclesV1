@@ -65,7 +65,7 @@ let loadRetries = 0;
 async function load() {
   renderTabs();
   render();
-  
+
   if (!initSupabase()) {
     loadRetries++;
     if (loadRetries > 20) { // 10 segons
@@ -129,7 +129,7 @@ function renderTabs() {
       console.error("No s'ha trobat l'element #tabs!");
       return;
     }
-    
+
     let html = '';
     tabs.forEach(t => {
       const config = tabConfig[t] || { icon: 'help-circle' };
@@ -142,14 +142,14 @@ function renderTabs() {
       `;
     });
     tabsEl.innerHTML = html;
-    
+
     // Barra superior
     const currentCfg = tabConfig[tab] || { icon: 'home', desc: '' };
     const titleEl = $('#current-tab-title');
     const descEl = $('#current-tab-desc');
     if (titleEl) titleEl.innerText = tab;
     if (descEl) descEl.innerText = currentCfg.desc;
-    
+
     const tagEl = $('#modul-active-tag');
     if (tagEl) {
       const activeModul = (S.moduls || []).find(m => m.id == selectedModulId);
@@ -253,7 +253,7 @@ function render() {
     else if (tab == 'Seguiment') html = seguimentView();
     else if (tab == 'Resultats') html = resultatsMatrixView();
     else if (tab == 'Informes') html = informesView();
-    
+
     A.innerHTML = html;
 
     if (window.lucide && typeof lucide.createIcons === 'function') {
