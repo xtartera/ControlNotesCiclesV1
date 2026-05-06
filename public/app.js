@@ -60,13 +60,19 @@ async function api(url, opt) {
   }
 }
 
+let loadRetries = 0;
 async function load() {
   renderTabs();
   render();
   
   if (!initSupabase()) {
-    console.warn("Esperant a la llibreria de Supabase...");
-    setTimeout(load, 500); // Ho tornem a intentar en mig segon
+    loadRetries++;
+    if (loadRetries > 20) { // 10 segons
+      const tagEl = $('#modul-active-tag');
+      if (tagEl) tagEl.innerText = "ERROR: No s'ha pogut carregar Supabase.";
+      return;
+    }
+    setTimeout(load, 500);
     return;
   }
 
