@@ -1,3 +1,4 @@
+alert('APP CARREGADA');
 const $ = s => document.querySelector(s);
 let S = { editingGroupId: null, editingAlumneId: null, filterGroupId: null, selectedAlumneIdForReport: null };
 
