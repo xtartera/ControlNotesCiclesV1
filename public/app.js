@@ -355,93 +355,97 @@ function activitatsView() {
 function weightingView(pid) {
   const p = S.projectes.find(x => x.id == pid);
   const ras = (S.ras || []).filter(r => r.modul_id == p.modul_id);
+  
+  if (!S.selectedRaIdWeight && ras.length) S.selectedRaIdWeight = ras[0].id;
+  
   const p_ras = (S.projecte_ra || []).filter(pr => pr.projecte_id == pid);
   const p_cas = (S.projecte_ca || []).filter(pc => pc.projecte_id == pid);
+  
+  const currentRA = ras.find(r => r.id == S.selectedRaIdWeight);
+  const casOfRA = (S.cas || []).filter(c => c.ra_id == S.selectedRaIdWeight);
 
   return `
-    <div class="card" style="margin-top: 32px; border-top: 4px solid var(--primary)">
-      <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+    <div class="card" style="margin-top: 32px; border-top: 4px solid var(--primary); animation: slideUp 0.3s ease">
+      <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px">
         <div>
-          <h2 style="margin:0"><i data-lucide="scale"></i> Ponderació: <strong>${p.nom}</strong></h2>
-          <p class="desc-tiny">Defineix quin pes té aquesta activitat en cada RA i CA.</p>
+          <h2 style="margin:0"><i data-lucide="layers"></i> Configuració de: <strong>${p.nom}</strong></h2>
+          <p class="desc-tiny">Selecciona un RA i marca els criteris (CA) que s'avaluen en aquesta activitat.</p>
         </div>
         <button class="secondary mini" onclick="S.selectedProjectIdWeight=null;render()"><i data-lucide="x"></i> Tancar</button>
       </header>
       
-      <div class="grid" style="grid-template-columns: 1fr 1.2fr">
-        ${wrap('Vinculació amb RA', `
-          <div style="display:flex; gap:8px; margin-bottom:16px">
-            <select id="sel-ra" style="margin:0">${opts(ras, 'codi')}</select>
-            <button class="mini" onclick="addWeight('ra', ${pid}, num('sel-ra'))"><i data-lucide="plus"></i> Vincular</button>
-          </div>
-          <div class="recent-activity-table">
-            <table>
-              <thead><tr><th>RA</th><th style="width:100px">Pes (%)</th><th style="text-align:right"></th></tr></thead>
-              <tbody>
-                ${p_ras.map(pr => `
-                  <tr>
-                    <td><strong>${pr.ra_codi}</strong></td>
-                    <td><input type="number" value="${pr.pes}" class="premium-input-sm" onchange="saveWeight('ra', ${pr.id}, this.value, ${pr.ra_id})"></td>
-                    <td style="text-align:right">
-                      <button class="secondary mini" onclick="api('/api/ras/${pr.ra_id}/normalitzar_projectes',{method:'POST'}).then(load)" title="Ajustar tots al 100%"><i data-lucide="scale"></i></button>
-                      <button class="btn-icon-danger" onclick="del('projecte_ra', ${pr.id})"><i data-lucide="trash-2"></i></button>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="muted">No vinculat a cap RA.</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        `, 'award')}
+      <div class="grid" style="grid-template-columns: 300px 1fr; gap:32px">
+        <!-- LLISTA DE RA -->
+        <div class="ra-selector-list">
+          <h3>Resultats d'Aprenentatge</h3>
+          ${ras.map(r => {
+            const isLinked = p_ras.some(pr => pr.ra_id == r.id);
+            return `
+              <div class="ra-item ${S.selectedRaIdWeight == r.id ? 'active' : ''}" onclick="S.selectedRaIdWeight=${r.id};render()">
+                <div style="display:flex; align-items:center; gap:12px; width:100%">
+                  <input type="radio" name="ra_sel" ${S.selectedRaIdWeight == r.id ? 'checked' : ''} style="margin:0; width:auto">
+                  <div style="flex:1">
+                    <strong>${r.codi}</strong>
+                    ${isLinked ? '<span class="status-dot green" title="Vinculat"></span>' : ''}
+                  </div>
+                  <i data-lucide="chevron-right" style="width:16px; opacity:0.5"></i>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
 
-        ${wrap('Vinculació detallada per CA', `
-          <div style="display:flex; gap:8px; margin-bottom:16px">
-            <select id="sel-ca" style="margin:0">${(S.cas || []).filter(c => ras.some(r => r.id == c.ra_id)).map(c => `<option value="${c.id}">${c.modul_codi} > ${c.ra_codi} > ${c.codi}</option>`).join('')}</select>
-            <button class="mini" onclick="addWeight('ca', ${pid}, num('sel-ca'))"><i data-lucide="plus"></i> Vincular</button>
-          </div>
-          <div class="recent-activity-table">
-            <table>
-              <thead><tr><th>CA</th><th style="width:100px">Pes (%)</th><th style="text-align:right"></th></tr></thead>
-              <tbody>
-                ${p_cas.map(pc => `
-                  <tr>
-                    <td><span class="pill">${pc.ra_codi}</span> <strong>${pc.ca_codi}</strong></td>
-                    <td><input type="number" value="${pc.pes}" class="premium-input-sm" onchange="saveWeight('ca', ${pc.id}, this.value, ${pc.ca_id})"></td>
-                    <td style="text-align:right">
-                      <button class="btn-icon-danger" onclick="del('projecte_ca', ${pc.id})"><i data-lucide="trash-2"></i></button>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="muted">No vinculat a cap CA.</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        `, 'check-square')}
+        <!-- LLISTA DE CA (CHECKBOXES) -->
+        <div class="ca-selector-grid">
+          ${currentRA ? `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+              <h3>Criteris de ${currentRA.codi}</h3>
+              <div class="pill secondary">Pes en aquest RA: <input type="number" value="${p_ras.find(pr=>pr.ra_id==currentRA.id)?.pes || 0}" style="width:50px; border:none; background:transparent; font-weight:bold" onchange="updateRAWeight(${pid}, ${currentRA.id}, this.value)"> %</div>
+            </div>
+            
+            <div class="ca-cards">
+              ${casOfRA.map(c => {
+                const linked = p_cas.find(pc => pc.ca_id == c.id);
+                return `
+                  <div class="ca-checkbox-card ${linked ? 'checked' : ''}" onclick="toggleCAWeight(${pid}, ${c.id}, ${linked ? linked.id : 'null'})">
+                    <div class="checkbox-ui ${linked ? 'active' : ''}">
+                       ${linked ? '<i data-lucide="check" style="width:14px; color:white"></i>' : ''}
+                    </div>
+                    <div style="flex:1">
+                      <div style="display:flex; justify-content:space-between">
+                        <strong>${c.codi}</strong>
+                        ${linked ? `<span class="weight-tag">${linked.pes}%</span>` : ''}
+                      </div>
+                      <p class="desc-tiny">${c.descripcio || 'Sense descripció'}</p>
+                    </div>
+                  </div>
+                `;
+              }).join('') || '<p class="muted">Aquest RA no té criteris definits.</p>'}
+            </div>
+          ` : '<p class="muted">Selecciona un RA de l\'esquerra.</p>'}
+        </div>
       </div>
     </div>
   `;
 }
 
-async function addWeight(type, pid, targetId) {
-  if (type === 'ra') {
-    await create('projecte_ra', { projecte_id: pid, ra_id: targetId, pes: 0 });
+async function updateRAWeight(pid, raid, pes) {
+  const existing = S.projecte_ra.find(pr => pr.projecte_id == pid && pr.ra_id == raid);
+  if (existing) {
+    await upd('projecte_ra', existing.id, { pes });
   } else {
-    await create('projecte_ca', { projecte_id: pid, ca_id: targetId, pes: 0 });
+    await create('projecte_ra', { projecte_id: pid, ra_id: raid, pes });
   }
+  await load();
 }
 
-async function saveWeight(type, id, val, targetId) {
-  const pes = Number(val);
-  const table = type === 'ra' ? 'projecte_ra' : 'projecte_ca';
-  const filterKey = type === 'ra' ? 'ra_id' : 'ca_id';
-  const list = type === 'ra' ? S.projecte_ra : S.projecte_ca;
-
-  // Validació del 100%
-  let total = list.filter(w => w[filterKey] == targetId && w.id != id).reduce((a, b) => a + Number(b.pes), 0);
-  if (total + pes > 100.1) {
-    alert(`Error: La suma de pesos per aquest ${type.toUpperCase()} superaria el 100% (Total: ${total + pes}%).`);
-    return;
+async function toggleCAWeight(pid, caid, linkedId) {
+  if (linkedId) {
+    await del('projecte_ca', linkedId);
+  } else {
+    await create('projecte_ca', { projecte_id: pid, ca_id: caid, pes: 0 });
   }
-
-  await upd(table, id, { pes });
+  await load();
 }
 
 async function saveProject() {
