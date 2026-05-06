@@ -193,8 +193,26 @@ app.post('/api/recalcular', ok(async () => {
       }
     }
   }
+app.post('/api/projectes/:id/normalitzar', ok(async (req) => {
+  const { id } = req.params;
+  // Normalitzar pesos de RA per aquesta activitat (o millor, per als RA que toca aquesta activitat)
+  // En realitat la normalització hauria de ser per RA: "Totes les activitats que toquen el RA1 sumin 100%"
   return { ok: true };
 }));
+
+app.post('/api/ras/:id/normalitzar_projectes', ok(async (req) => {
+  const { id } = req.params;
+  const weights = (await query('SELECT id, pes FROM projecte_ra WHERE ra_id=$1', [id])).rows;
+  if (!weights.length) return { ok: true };
+  const total = weights.reduce((a, b) => a + Number(b.pes), 0);
+  const factor = total > 0 ? 100 / total : (100 / weights.length);
+  for (const w of weights) {
+    const nouPes = total > 0 ? Math.round(w.pes * factor * 10) / 10 : Math.round((100 / weights.length) * 10) / 10;
+    await query('UPDATE projecte_ra SET pes=$1 WHERE id=$2', [nouPes, w.id]);
+  }
+  return { ok: true };
+}));
+
 
 app.post('/api/moduls/:id/normalitzar', ok(async (req) => {
   const { id } = req.params;

@@ -356,36 +356,64 @@ function weightingView(pid) {
   const p = S.projectes.find(x => x.id == pid);
   const ras = (S.ras || []).filter(r => r.modul_id == p.modul_id);
   const p_ras = (S.projecte_ra || []).filter(pr => pr.projecte_id == pid);
+  const p_cas = (S.projecte_ca || []).filter(pc => pc.projecte_id == pid);
 
   return `
     <div class="card" style="margin-top: 32px; border-top: 4px solid var(--primary)">
       <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
-        <h2 style="margin:0"><i data-lucide="scale"></i> Ponderació de: <strong>${p.nom}</strong></h2>
+        <div>
+          <h2 style="margin:0"><i data-lucide="scale"></i> Ponderació: <strong>${p.nom}</strong></h2>
+          <p class="desc-tiny">Defineix quin pes té aquesta activitat en cada RA i CA.</p>
+        </div>
         <button class="secondary mini" onclick="S.selectedProjectIdWeight=null;render()"><i data-lucide="x"></i> Tancar</button>
       </header>
       
-      <div class="grid" style="grid-template-columns: 1fr 1fr">
-        ${wrap('Vincular amb RA', `
+      <div class="grid" style="grid-template-columns: 1fr 1.2fr">
+        ${wrap('Vinculació amb RA', `
           <div style="display:flex; gap:8px; margin-bottom:16px">
-            <select id="sel-ra">${opts(ras, 'codi')}</select>
-            <button onclick="addWeight('ra', ${pid}, num('sel-ra'))">Vincular RA</button>
+            <select id="sel-ra" style="margin:0">${opts(ras, 'codi')}</select>
+            <button class="mini" onclick="addWeight('ra', ${pid}, num('sel-ra'))"><i data-lucide="plus"></i> Vincular</button>
           </div>
-          <table class="recent-activity-table">
-            <thead><tr><th>RA</th><th>Pes (%)</th><th></th></tr></thead>
-            <tbody>
-              ${p_ras.map(pr => `
-                <tr>
-                  <td><strong>${pr.ra_codi}</strong></td>
-                  <td><input type="number" value="${pr.pes}" style="width:70px" onchange="upd('projecte_ra', ${pr.id}, {pes:this.value})"> %</td>
-                  <td style="text-align:right"><button class="btn-icon-danger" onclick="del('projecte_ra', ${pr.id})"><i data-lucide="trash-2"></i></button></td>
-                </tr>
-              `).join('') || '<tr><td colspan="3" class="muted">No vinculat a cap RA.</td></tr>'}
-            </tbody>
-          </table>
+          <div class="recent-activity-table">
+            <table>
+              <thead><tr><th>RA</th><th style="width:100px">Pes (%)</th><th style="text-align:right"></th></tr></thead>
+              <tbody>
+                ${p_ras.map(pr => `
+                  <tr>
+                    <td><strong>${pr.ra_codi}</strong></td>
+                    <td><input type="number" value="${pr.pes}" class="premium-input-sm" onchange="saveWeight('ra', ${pr.id}, this.value, ${pr.ra_id})"></td>
+                    <td style="text-align:right">
+                      <button class="secondary mini" onclick="api('/api/ras/${pr.ra_id}/normalitzar_projectes',{method:'POST'}).then(load)" title="Ajustar tots al 100%"><i data-lucide="scale"></i></button>
+                      <button class="btn-icon-danger" onclick="del('projecte_ra', ${pr.id})"><i data-lucide="trash-2"></i></button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="muted">No vinculat a cap RA.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
         `, 'award')}
 
-        ${wrap('Vincular amb CA', `
-           <p class="desc-tiny">Properament: Vinculació detallada per CA per a un càlcul més precís.</p>
+        ${wrap('Vinculació detallada per CA', `
+          <div style="display:flex; gap:8px; margin-bottom:16px">
+            <select id="sel-ca" style="margin:0">${(S.cas || []).filter(c => ras.some(r => r.id == c.ra_id)).map(c => `<option value="${c.id}">${c.modul_codi} > ${c.ra_codi} > ${c.codi}</option>`).join('')}</select>
+            <button class="mini" onclick="addWeight('ca', ${pid}, num('sel-ca'))"><i data-lucide="plus"></i> Vincular</button>
+          </div>
+          <div class="recent-activity-table">
+            <table>
+              <thead><tr><th>CA</th><th style="width:100px">Pes (%)</th><th style="text-align:right"></th></tr></thead>
+              <tbody>
+                ${p_cas.map(pc => `
+                  <tr>
+                    <td><span class="pill">${pc.ra_codi}</span> <strong>${pc.ca_codi}</strong></td>
+                    <td><input type="number" value="${pc.pes}" class="premium-input-sm" onchange="saveWeight('ca', ${pc.id}, this.value, ${pc.ca_id})"></td>
+                    <td style="text-align:right">
+                      <button class="btn-icon-danger" onclick="del('projecte_ca', ${pc.id})"><i data-lucide="trash-2"></i></button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="muted">No vinculat a cap CA.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
         `, 'check-square')}
       </div>
     </div>
@@ -395,7 +423,25 @@ function weightingView(pid) {
 async function addWeight(type, pid, targetId) {
   if (type === 'ra') {
     await create('projecte_ra', { projecte_id: pid, ra_id: targetId, pes: 0 });
+  } else {
+    await create('projecte_ca', { projecte_id: pid, ca_id: targetId, pes: 0 });
   }
+}
+
+async function saveWeight(type, id, val, targetId) {
+  const pes = Number(val);
+  const table = type === 'ra' ? 'projecte_ra' : 'projecte_ca';
+  const filterKey = type === 'ra' ? 'ra_id' : 'ca_id';
+  const list = type === 'ra' ? S.projecte_ra : S.projecte_ca;
+
+  // Validació del 100%
+  let total = list.filter(w => w[filterKey] == targetId && w.id != id).reduce((a, b) => a + Number(b.pes), 0);
+  if (total + pes > 100.1) {
+    alert(`Error: La suma de pesos per aquest ${type.toUpperCase()} superaria el 100% (Total: ${total + pes}%).`);
+    return;
+  }
+
+  await upd(table, id, { pes });
 }
 
 async function saveProject() {
