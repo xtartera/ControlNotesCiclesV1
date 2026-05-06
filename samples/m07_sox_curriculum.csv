@@ -1,0 +1,12 @@
+modul_codi,modul_nom,modul_hores,modul_curs,ra_codi,ra_pes,ra_nota_minima,ra_descripcio,ca_codi,ca_pes,ca_descripcio
+M07,Sistemes Operatius en Xarxa,132,2,RA1,25,5,Instal·la i configura el sistema operatiu en xarxa,CA1.1,25,Planifica la instal·lació i selecciona el programari
+M07,Sistemes Operatius en Xarxa,132,2,RA1,25,5,Instal·la i configura el sistema operatiu en xarxa,CA1.2,25,Instal·la el sistema operatiu servidor
+M07,Sistemes Operatius en Xarxa,132,2,RA1,25,5,Instal·la i configura el sistema operatiu en xarxa,CA1.3,25,Configura els paràmetres bàsics de xarxa i protocols
+M07,Sistemes Operatius en Xarxa,132,2,RA1,25,5,Instal·la i configura el sistema operatiu en xarxa,CA1.4,25,Realitza actualitzacions i manteniment inicial
+M07,Sistemes Operatius en Xarxa,132,2,RA2,30,5,Gestiona usuaris i grups del sistema en xarxa,CA2.1,30,Crea comptes d'usuari i configura les seves propietats
+M07,Sistemes Operatius en Xarxa,132,2,RA2,30,5,Gestiona usuaris i grups del sistema en xarxa,CA2.2,30,Crea i gestiona grups d'usuaris
+M07,Sistemes Operatius en Xarxa,132,2,RA2,30,5,Gestiona usuaris i grups del sistema en xarxa,CA2.3,40,Aplica polítiques de seguretat i contrasenyes
+M07,Sistemes Operatius en Xarxa,132,2,RA3,25,5,Gestiona recursos compartits en la xarxa,CA3.1,50,Configura permisos sobre fitxers i carpetes
+M07,Sistemes Operatius en Xarxa,132,2,RA3,25,5,Gestiona recursos compartits en la xarxa,CA3.2,50,Comparteix recursos i gestiona els permisos de xarxa
+M07,Sistemes Operatius en Xarxa,132,2,RA4,20,5,Realitza tasques de monitorització i manteniment,CA4.1,50,Utilitza eines de monitorització del rendiment
+M07,Sistemes Operatius en Xarxa,132,2,RA4,20,5,Realitza tasques de monitorització i manteniment,CA4.2,50,Gestiona les còpies de seguretat del servidor

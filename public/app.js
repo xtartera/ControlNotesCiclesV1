@@ -22,9 +22,15 @@ let selectedProjectId = null;
 async function api(url, opt) {
   try {
     const r = await fetch(url, opt);
-    const j = await r.json();
-    if (!r.ok) throw Error(j.error || 'Error');
-    return j
+    const contentType = r.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const j = await r.json();
+      if (!r.ok) throw Error(j.error || 'Error del servidor');
+      return j;
+    } else {
+      if (!r.ok) throw Error(`Error ${r.status}: El servidor no ha respost correctament.`);
+      return {};
+    }
   } catch (e) {
     toast(e.message, 'error');
     throw e;
@@ -241,7 +247,21 @@ async function normalitzarModul(id, show = true) { await api('/api/moduls/' + id
 async function normalitzarCA(raId, show = true) { const cas = S.cas.filter(c => c.ra_id == raId); const act = cas.filter(c => Number(c.actiu) !== 0); const pes = act.length ? 100 / act.length : 0; for (const c of cas) { await upd('cas', c.id, { pes: Number(c.actiu) !== 0 ? pes : 0 }) } if (show) toast('Ponderació dels CA repartida.'); await load() }
 
 function importCurriculum() { return wrap('Importació CSV Currículum', `<p class="muted small">Format: modul_codi,modul_nom,modul_hores,modul_curs,ra_codi,ra_pes,ra_nota_minima,ra_descripcio,ca_codi,ca_pes,ca_descripcio</p><input id="csvcurr" type="file" accept=".csv"><button onclick="importarCurriculum()">Importar</button>`, 'upload-cloud') }
-async function importarCurriculum() { const f = $('#csvcurr').files[0]; if (!f) { toast('Selecciona un fitxer.', 'error'); return } const fd = new FormData(); fd.append('file', f); await fetch('/api/import/curriculum', { method: 'POST', body: fd }); toast('Currículum importat correctament.'); await load() }
+async function importarCurriculum() { 
+  const f = $('#csvcurr').files[0]; 
+  if (!f) { toast('Selecciona un fitxer.', 'error'); return } 
+  const fd = new FormData(); 
+  fd.append('file', f); 
+  try {
+    const r = await fetch('/api/import/curriculum', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Error en la importació');
+    toast('Currículum importat correctament.'); 
+    await load();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
 
 function activitatsView() {
   if (!selectedProjectId && S.projectes?.length) selectedProjectId = S.projectes[0].id;
@@ -305,10 +325,15 @@ async function importarProjectes() {
   if (!f) return toast('Selecciona un fitxer.', 'error');
   const fd = new FormData();
   fd.append('file', f);
-  const r = await fetch('/api/import/projectes', { method: 'POST', body: fd });
-  const j = await r.json();
-  toast(`Importats ${j.importats} projectes.`);
-  await load();
+  try {
+    const r = await fetch('/api/import/projectes', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Error en la importació');
+    toast(`Importats ${j.importats} projectes.`);
+    await load();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 function ponderacionsComponent(p) {
@@ -493,7 +518,21 @@ async function saveAlumne() {
   S.editingAlumneId = null; await load();
 }
 
-async function importar() { const f = $('#csv').files[0]; if (!f) return toast('Selecciona un fitxer.', 'error'); const fd = new FormData(); fd.append('file', f); await fetch('/api/import/alumnes', { method: 'POST', body: fd }); toast('Usuaris importats.'); await load() }
+async function importar() { 
+  const f = $('#csv').files[0]; 
+  if (!f) return toast('Selecciona un fitxer.', 'error'); 
+  const fd = new FormData(); 
+  fd.append('file', f); 
+  try {
+    const r = await fetch('/api/import/alumnes', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Error en la importació');
+    toast('Usuaris importats.'); 
+    await load();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
 
 function tipusActivitatView() { 
   return `
@@ -516,6 +555,17 @@ function tipusActivitatView() {
         `, 'plus-circle')}
       </div>
       <div class="wide">
+        ${(() => {
+          const actius = (S.tipus_activitat || []).filter(t => Number(t.actiu) !== 0);
+          const total = actius.reduce((acc, t) => acc + Number(t.pes_defecte || 0), 0);
+          const isOk = Math.abs(total - 100) < 0.01;
+          return `
+            <div class="status ${isOk ? 'ok' : 'warn'}" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center">
+              <span>Suma de ponderacions actives: <strong>${total.toFixed(2)}%</strong></span>
+              ${isOk ? '<span><i data-lucide="check-circle" style="width:16px; vertical-align:middle"></i> Correcte</span>' : '<span><i data-lucide="alert-triangle" style="width:16px; vertical-align:middle"></i> Ha de sumar 100%</span>'}
+            </div>
+          `;
+        })()}
         ${wrap('Configuració de Tipus', `
           <div class="table-scroll">
             <table>
@@ -532,11 +582,11 @@ function tipusActivitatView() {
               <tbody>
                 ${(S.tipus_activitat || []).map(r => `
                   <tr>
-                    <td><input value="${r.nom || ''}" onchange="upd('tipus_activitat',${r.id},{nom:this.value})" style="margin:0"></td>
-                    <td><input type="number" step="0.01" value="${r.pes_defecte || 0}" onchange="upd('tipus_activitat',${r.id},{pes_defecte:Number(this.value)})" style="margin:0; width:70px"></td>
-                    <td style="text-align: center"><input type="checkbox" ${Number(r.requereix_minim) ? 'checked' : ''} onchange="upd('tipus_activitat',${r.id},{requereix_minim:this.checked?1:0})"></td>
-                    <td><input type="number" step="0.1" value="${r.nota_minima || 5}" onchange="upd('tipus_activitat',${r.id},{nota_minima:Number(this.value)})" style="margin:0; width:70px"></td>
-                    <td style="text-align: center"><input type="checkbox" ${Number(r.actiu) !== 0 ? 'checked' : ''} onchange="upd('tipus_activitat',${r.id},{actiu:this.checked?1:0})"></td>
+                    <td><input value="${r.nom || ''}" onchange="upd('tipus_activitat',${r.id},{nom:this.value}).then(load)" style="margin:0"></td>
+                    <td><input type="number" step="0.01" value="${r.pes_defecte || 0}" onchange="upd('tipus_activitat',${r.id},{pes_defecte:Number(this.value)}).then(load)" style="margin:0; width:70px"></td>
+                    <td style="text-align: center"><input type="checkbox" ${Number(r.requereix_minim) ? 'checked' : ''} onchange="upd('tipus_activitat',${r.id},{requereix_minim:this.checked?1:0}).then(load)"></td>
+                    <td><input type="number" step="0.1" value="${r.nota_minima || 5}" onchange="upd('tipus_activitat',${r.id},{nota_minima:Number(this.value)}).then(load)" style="margin:0; width:70px"></td>
+                    <td style="text-align: center"><input type="checkbox" ${Number(r.actiu) !== 0 ? 'checked' : ''} onchange="upd('tipus_activitat',${r.id},{actiu:this.checked?1:0}).then(load)"></td>
                     <td><button class="btn-icon-danger" onclick="del('tipus_activitat',${r.id})"><i data-lucide="trash-2" style="width:16px"></i></button></td>
                   </tr>
                 `).join('')}

@@ -1,0 +1,19 @@
+modul_codi,modul_nom,modul_hores,modul_curs,ra_codi,ra_pes,ra_nota_minima,ra_descripcio,ca_codi,ca_pes,ca_descripcio
+M04,Sistemes Operatius en Xarxa,132,2,RA1,15,5,Instal·la i configura el sistema operatiu en xarxa,CA1.a,25,Planifica la instal·lació i selecciona el programari segons requisits
+M04,Sistemes Operatius en Xarxa,132,2,RA1,15,5,Instal·la i configura el sistema operatiu en xarxa,CA1.b,25,Crea les particions i aplica els sistemes de fitxers adequats
+M04,Sistemes Operatius en Xarxa,132,2,RA1,15,5,Instal·la i configura el sistema operatiu en xarxa,CA1.c,25,Instal·la el sistema operatiu servidor i les eines d'administració
+M04,Sistemes Operatius en Xarxa,132,2,RA1,15,5,Instal·la i configura el sistema operatiu en xarxa,CA1.d,25,Realitza tasques de post-instal·lació i configuració de xarxa
+M04,Sistemes Operatius en Xarxa,132,2,RA2,20,5,Gestiona usuaris i grups del sistema en xarxa,CA2.a,25,Crea comptes d'usuari i configura les seves propietats
+M04,Sistemes Operatius en Xarxa,132,2,RA2,20,5,Gestiona usuaris i grups del sistema en xarxa,CA2.b,25,Gestiona grups d'usuaris per a l'administració centralitzada
+M04,Sistemes Operatius en Xarxa,132,2,RA2,20,5,Gestiona usuaris i grups del sistema en xarxa,CA2.c,25,Configura perfils d'usuari mòbils i obligatoris
+M04,Sistemes Operatius en Xarxa,132,2,RA2,20,5,Gestiona usuaris i grups del sistema en xarxa,CA2.d,25,Aplica drets d'usuari i delegació d'administració
+M04,Sistemes Operatius en Xarxa,132,2,RA3,15,5,Gestiona recursos compartits en la xarxa,CA3.a,33,Gestiona el sistema de fitxers i les quotes de disc
+M04,Sistemes Operatius en Xarxa,132,2,RA3,15,5,Gestiona recursos compartits en la xarxa,CA3.b,33,Configura permisos d'accés locals (NTFS) sobre fitxers i carpetes
+M04,Sistemes Operatius en Xarxa,132,2,RA3,15,5,Gestiona recursos compartits en la xarxa,CA3.c,34,Comparteix recursos en xarxa i gestiona els permisos de compartició
+M04,Sistemes Operatius en Xarxa,132,2,RA4,15,5,Configura serveis de xarxa bàsics,CA4.a,50,Instal·la i configura un servidor DHCP per a l'assignació dinàmica
+M04,Sistemes Operatius en Xarxa,132,2,RA4,15,5,Configura serveis de xarxa bàsics,CA4.b,50,Instal·la i configura un servidor DNS per a la resolució de noms
+M04,Sistemes Operatius en Xarxa,132,2,RA5,20,5,Aplica tècniques de seguretat i auditories,CA5.a,33,Implementa directives de seguretat de domini i locals (GPO)
+M04,Sistemes Operatius en Xarxa,132,2,RA5,20,5,Aplica tècniques de seguretat i auditories,CA5.b,33,Configura l'auditoria del sistema per detectar accessos
+M04,Sistemes Operatius en Xarxa,132,2,RA5,20,5,Aplica tècniques de seguretat i auditories,CA5.c,34,Gestiona les còpies de seguretat i la recuperació del sistema
+M04,Sistemes Operatius en Xarxa,132,2,RA6,15,5,Integra sistemes operatius lliures i propietaris,CA6.a,50,Configura la interoperabilitat entre sistemes Windows i Linux (Samba)
+M04,Sistemes Operatius en Xarxa,132,2,RA6,15,5,Integra sistemes operatius lliures i propietaris,CA6.b,50,Utilitza eines d'administració remota i terminal server

@@ -1,0 +1,13 @@
+modul_codi,modul_nom,modul_hores,modul_curs,ra_codi,ra_pes,ra_nota_minima,ra_descripcio,ca_codi,ca_pes,ca_descripcio
+M04,Sistemes Operatius en Xarxa,132,2,RA1,15,5,Instal·la i configura el sistema operatiu en xarxa,CA1.1,50,Planifica la instal·lació i selecciona el programari
+M04,Sistemes Operatius en Xarxa,132,2,RA1,15,5,Instal·la i configura el sistema operatiu en xarxa,CA1.2,50,Instal·la el sistema operatiu servidor
+M04,Sistemes Operatius en Xarxa,132,2,RA2,20,5,Gestiona usuaris i grups del sistema en xarxa,CA2.1,50,Crea comptes d'usuari i configura les seves propietats
+M04,Sistemes Operatius en Xarxa,132,2,RA2,20,5,Gestiona usuaris i grups del sistema en xarxa,CA2.2,50,Crea i gestiona grups d'usuaris
+M04,Sistemes Operatius en Xarxa,132,2,RA3,15,5,Gestiona recursos compartits en la xarxa,CA3.1,50,Configura permisos sobre fitxers i carpetes
+M04,Sistemes Operatius en Xarxa,132,2,RA3,15,5,Gestiona recursos compartits en la xarxa,CA3.2,50,Comparteix recursos i gestiona els permisos de xarxa
+M04,Sistemes Operatius en Xarxa,132,2,RA4,15,5,Configura serveis de xarxa bàsics,CA4.1,50,Configura serveis de resolució de noms (DNS)
+M04,Sistemes Operatius en Xarxa,132,2,RA4,15,5,Configura serveis de xarxa bàsics,CA4.2,50,Configura serveis de configuració dinàmica (DHCP)
+M04,Sistemes Operatius en Xarxa,132,2,RA5,20,5,Aplica tècniques de seguretat i auditories,CA5.1,50,Implementa polítiques de seguretat locals i de xarxa
+M04,Sistemes Operatius en Xarxa,132,2,RA5,20,5,Aplica tècniques de seguretat i auditories,CA5.2,50,Audita l'ús del sistema i detecta accessos no autoritzats
+M04,Sistemes Operatius en Xarxa,132,2,RA6,15,5,Integra sistemes operatius lliures i propietaris,CA6.1,50,Configura la interoperabilitat entre sistemes diferents
+M04,Sistemes Operatius en Xarxa,132,2,RA6,15,5,Integra sistemes operatius lliures i propietaris,CA6.2,50,Utilitza eines de control remot i administració centralitzada
