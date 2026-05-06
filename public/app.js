@@ -545,8 +545,9 @@ function tipusActivitatView() {
   return `
     <div class="grid">
       <div class="card">
-        <h2><i data-lucide="plus-circle"></i> Nou Tipus</h2>
+        <h2><i data-lucide="${S.editingTipusId ? 'edit' : 'plus-circle'}"></i> ${S.editingTipusId ? 'Modificar' : 'Nou'} Tipus</h2>
         <div style="display:grid; gap:12px">
+          <input type="hidden" id="tid" value="${S.editingTipusId || ''}">
           <div><label>Nom del tipus</label><input id="tn" placeholder="Ex: Examen, Pràctica..."></div>
           <div><label>Pes per defecte (%)</label><input type="number" id="tp" value="0"></div>
           <div><label>Nota mínima</label><input type="number" id="tm" value="5" step="0.1"></div>
@@ -555,15 +556,23 @@ function tipusActivitatView() {
             <label for="tl" style="margin:0">Limita la nota del RA si no s'arriba al mínim</label>
           </div>
           <div class="info-box ${pesTotal > 100 ? 'danger' : ''}" style="margin-top:10px">
-            <strong>Pes total assignat: ${pesTotal}%</strong> (Màxim 100%)
+            <strong>Pes total assignat: ${pesTotal}%</strong>
           </div>
-          <button style="margin-top:10px" onclick="createTipusActivitat()">
-            <i data-lucide="save"></i> Guardar tipus
-          </button>
+          <div style="display:flex; gap:8px; margin-top:10px">
+            <button onclick="createTipusActivitat()" style="flex:1">
+              <i data-lucide="save"></i> ${S.editingTipusId ? 'Actualitzar' : 'Guardar'}
+            </button>
+            ${S.editingTipusId ? `<button class="secondary" onclick="S.editingTipusId=null;render()"><i data-lucide="x"></i></button>` : ''}
+          </div>
         </div>
       </div>
       <div class="wide">
         ${wrap('Configuració de tipus d\'activitat', `
+          <div style="margin-bottom:12px">
+            <button class="secondary mini" onclick="normalitzarTipus()">
+              <i data-lucide="scale"></i> Ajustar tots al 100%
+            </button>
+          </div>
           <div class="recent-activity-table">
             <table>
               <thead>
@@ -582,7 +591,8 @@ function tipusActivitatView() {
                     <td style="text-align:center"><span class="pill">${t.pes_defecte}%</span></td>
                     <td style="text-align:center">${t.nota_minima || '—'}</td>
                     <td style="text-align:center">${t.limita_ra ? '✅' : '❌'}</td>
-                    <td style="text-align:right">
+                    <td style="text-align:right; white-space:nowrap">
+                       <button class="secondary mini" onclick="editTipusActivitat(${t.id})" title="Editar"><i data-lucide="edit-2"></i></button>
                        <button class="btn-icon-danger" onclick="del('tipus_activitat',${t.id})"><i data-lucide="trash-2"></i></button>
                     </td>
                   </tr>
@@ -596,20 +606,50 @@ function tipusActivitatView() {
   `;
 }
 
+function editTipusActivitat(id) {
+  const t = S.tipus_activitat.find(x => x.id == id);
+  if (!t) return;
+  S.editingTipusId = id;
+  render();
+  $('#tn').value = t.nom;
+  $('#tp').value = t.pes_defecte;
+  $('#tm').value = t.nota_minima;
+  $('#tl').checked = !!t.limita_ra;
+}
+
+async function normalitzarTipus() {
+  if (confirm('Vols ajustar automàticament tots els pesos perquè sumin exactament 100%?')) {
+    await api('/api/tipus_activitat/normalitzar', { method: 'POST' });
+    await load();
+  }
+}
+
 async function createTipusActivitat() {
+  const id = $('#tid').value;
   const nom = val('tn');
   const pes = num('tp');
   const notaMin = num('tm');
   const limita = $('#tl').checked ? 1 : 0;
 
-  const pesActual = (S.tipus_activitat || []).reduce((acc, t) => acc + (Number(t.pes_defecte) || 0), 0);
+  // Validació intel·ligent del 100%
+  let pesActualTotal = (S.tipus_activitat || []).reduce((acc, t) => acc + (Number(t.pes_defecte) || 0), 0);
+  if (id) {
+    const vell = S.tipus_activitat.find(x => x.id == id);
+    pesActualTotal -= (Number(vell?.pes_defecte) || 0);
+  }
   
-  if (pesActual + pes > 100) {
-    alert(`Error: La suma total dels pesos (${pesActual + pes}%) no pot superar el 100%. Redueix el pes o modifica els existents.`);
+  if (pesActualTotal + pes > 100.1) { // Deixem un marge per decimals
+    alert(`Error: El total superaria el 100%.`);
     return;
   }
 
-  await create('tipus_activitat', { nom, pes_defecte: pes, nota_minima: notaMin, limita_ra: limita });
+  if (id) {
+    await upd('tipus_activitat', id, { nom, pes_defecte: pes, nota_minima: notaMin, limita_ra: limita });
+    S.editingTipusId = null;
+  } else {
+    await create('tipus_activitat', { nom, pes_defecte: pes, nota_minima: notaMin, limita_ra: limita });
+  }
+  await load();
 }
 
 

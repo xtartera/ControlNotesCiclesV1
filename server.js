@@ -196,4 +196,39 @@ app.post('/api/recalcular', ok(async () => {
   return { ok: true };
 }));
 
+app.post('/api/moduls/:id/normalitzar', ok(async (req) => {
+  const { id } = req.params;
+  const ras = (await query('SELECT id, pes FROM ras WHERE modul_id=$1', [id])).rows;
+  if (!ras.length) return { ok: true };
+  const totalRas = ras.reduce((a, b) => a + Number(b.pes), 0);
+  const factor = totalRas > 0 ? 100 / totalRas : (100 / ras.length);
+  for (const ra of ras) {
+    const nouPes = totalRas > 0 ? Math.round(ra.pes * factor * 10) / 10 : Math.round((100 / ras.length) * 10) / 10;
+    await query('UPDATE ras SET pes=$1 WHERE id=$2', [nouPes, ra.id]);
+    const cas = (await query('SELECT id, pes FROM cas WHERE ra_id=$1', [ra.id])).rows;
+    if (cas.length) {
+      const totalCas = cas.reduce((a, b) => a + Number(b.pes), 0);
+      const fca = totalCas > 0 ? 100 / totalCas : (100 / cas.length);
+      for (const ca of cas) {
+        const nouPesCA = totalCas > 0 ? Math.round(ca.pes * fca * 10) / 10 : Math.round((100 / cas.length) * 10) / 10;
+        await query('UPDATE cas SET pes=$1 WHERE id=$2', [nouPesCA, ca.id]);
+      }
+    }
+  }
+  return { ok: true };
+}));
+
+app.post('/api/tipus_activitat/normalitzar', ok(async () => {
+  const tipus = (await query('SELECT id, pes_defecte FROM tipus_activitat')).rows;
+  if (!tipus.length) return { ok: true };
+  const total = tipus.reduce((a, b) => a + (Number(b.pes_defecte) || 0), 0);
+  const factor = total > 0 ? 100 / total : (100 / tipus.length);
+  for (const t of tipus) {
+    const nouPes = total > 0 ? Math.round(Number(t.pes_defecte) * factor * 10) / 10 : Math.round((100 / tipus.length) * 10) / 10;
+    await query('UPDATE tipus_activitat SET pes_defecte=$1 WHERE id=$2', [nouPes, t.id]);
+  }
+  return { ok: true };
+}));
+
 app.listen(PORT, () => console.log(`Servidor actiu a Render (Port ${PORT})`));
+
