@@ -299,22 +299,29 @@ function activitatsView() {
       </div>
     </div>
 
-    <div class="grid">
+    <div class="grid" style="grid-template-columns: 1fr;">
       <div class="card">
         <h2><i data-lucide="${S.editingProjectId ? 'edit' : 'plus-circle'}"></i> ${S.editingProjectId ? 'Modificar' : 'Nova'} Activitat</h2>
-        <div style="display:grid; gap:12px">
+        <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap">
           <input type="hidden" id="pm" value="${selectedModulId}">
-          <div><label>Tipus d'activitat</label><select id="pt" style="margin:0">${opts(S.tipus_activitat)}</select></div>
-          <div><label>Nom de l'activitat</label><input id="pn" placeholder="Ex: Projecte Final" style="margin:0" value="${S.editingProjectId ? (S.projectes.find(p=>p.id==S.editingProjectId)?.nom||'') : ''}"></div>
-          <div style="display:flex; gap:8px; margin-top:10px">
-            <button style="flex:1" onclick="saveProject()">
+          <div style="flex: 1; min-width: 200px;">
+            <label>Tipus d'activitat</label>
+            <select id="pt" style="margin:0">${opts(S.tipus_activitat)}</select>
+          </div>
+          <div style="flex: 2; min-width: 300px;">
+            <label>Nom de l'activitat</label>
+            <input id="pn" placeholder="Ex: Projecte Final" style="margin:0" value="${S.editingProjectId ? (S.projectes.find(p=>p.id==S.editingProjectId)?.nom||'') : ''}">
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="primary" onclick="saveProject()">
               <i data-lucide="save"></i> ${S.editingProjectId ? 'Actualitzar' : 'Crear'}
             </button>
             ${S.editingProjectId ? `<button class="secondary" onclick="S.editingProjectId=null;render()"><i data-lucide="x"></i></button>` : ''}
           </div>
         </div>
       </div>
-      <div class="wide">
+    </div>
+    <div style="margin-top:24px">
         ${wrap('Llistat d\'activitats del mòdul', `
           <div class="recent-activity-table">
             <table>
