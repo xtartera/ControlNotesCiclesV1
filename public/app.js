@@ -1,6 +1,6 @@
-alert('OK');
 const $ = s => document.querySelector(s);
 let S = { editingGroupId: null, editingAlumneId: null, filterGroupId: null, selectedAlumneIdForReport: null };
+
 
 
 // --- CONFIGURACIÓ SUPABASE ---
