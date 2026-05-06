@@ -539,8 +539,57 @@ function usuarisView() {
 }
 
 function tipusActivitatView() {
-  return wrap('Tipus d\'activitat', `<table><thead><tr><th>Nom</th><th>Pes %</th></tr></thead><tbody>${(S.tipus_activitat||[]).map(t => `<tr><td>${t.nom}</td><td>${t.pes_defecte}%</td></tr>`).join('')}</tbody></table>`, 'settings');
+  return `
+    <div class="grid">
+      <div class="card">
+        <h2><i data-lucide="plus-circle"></i> Nou Tipus</h2>
+        <div style="display:grid; gap:12px">
+          <div><label>Nom del tipus</label><input id="tn" placeholder="Ex: Examen, Pràctica..."></div>
+          <div><label>Pes per defecte (%)</label><input type="number" id="tp" value="0"></div>
+          <div><label>Nota mínima</label><input type="number" id="tm" value="5" step="0.1"></div>
+          <div style="display:flex; align-items:center; gap:8px">
+            <input type="checkbox" id="tl" style="width:auto; margin:0">
+            <label for="tl" style="margin:0">Limita la nota del RA si no s'arriba al mínim</label>
+          </div>
+          <button style="margin-top:10px" onclick="create('tipus_activitat',{nom:val('tn'),pes_defecte:num('tp'),nota_minima:num('tm'),limita_ra:$('#tl').checked?1:0})">
+            <i data-lucide="save"></i> Guardar tipus
+          </button>
+        </div>
+      </div>
+      <div class="wide">
+        ${wrap('Configuració de tipus d\'activitat', `
+          <div class="recent-activity-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th style="text-align:center">Pes Defecte</th>
+                  <th style="text-align:center">Nota Mín.</th>
+                  <th style="text-align:center">Limita RA</th>
+                  <th style="text-align:right">Accions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(S.tipus_activitat || []).map(t => `
+                  <tr>
+                    <td><strong>${t.nom}</strong></td>
+                    <td style="text-align:center"><span class="pill">${t.pes_defecte}%</span></td>
+                    <td style="text-align:center">${t.nota_minima || '—'}</td>
+                    <td style="text-align:center">${t.limita_ra ? '✅' : '❌'}</td>
+                    <td style="text-align:right">
+                       <button class="btn-icon-danger" onclick="del('tipus_activitat',${t.id})"><i data-lucide="trash-2"></i></button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="5" style="text-align:center; padding:40px">No hi ha tipus definits.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `, 'settings')}
+      </div>
+    </div>
+  `;
 }
+
 
 function seguimentView() { return wrap('Seguiment', `<p>Proximament...</p>`, 'layout'); }
 
