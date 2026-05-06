@@ -398,9 +398,17 @@ function weightingView(pid) {
         <!-- LLISTA DE CA (CHECKBOXES) -->
         <div class="ca-selector-grid">
           ${currentRA ? `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
-              <h3>Criteris de ${currentRA.codi}</h3>
-              <div class="pill secondary">Pes en aquest RA: <input type="number" value="${p_ras.find(pr=>pr.ra_id==currentRA.id)?.pes || 0}" style="width:50px; border:none; background:transparent; font-weight:bold" onchange="updateRAWeight(${pid}, ${currentRA.id}, this.value)"> %</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; background: #f1f5f9; padding: 12px 16px; border-radius: 12px;">
+              <h3 style="margin:0">Criteris de ${currentRA.codi}</h3>
+              <div style="display:flex; align-items:center; gap:10px">
+                <label style="margin:0; font-weight:600; font-size:13px">Pes en aquest RA:</label>
+                <div class="pill primary" style="padding: 4px 12px; display:flex; align-items:center; gap:4px">
+                  <input type="number" value="${p_ras.find(pr=>pr.ra_id==currentRA.id)?.pes || 0}" 
+                         style="width:70px; border:none; background:transparent; font-weight:bold; color:white; text-align:center; outline:none" 
+                         onchange="updateRAWeight(${pid}, ${currentRA.id}, this.value)">
+                  <span style="font-weight:bold; color:white">%</span>
+                </div>
+              </div>
             </div>
             
             <div class="ca-cards">
