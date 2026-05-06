@@ -54,7 +54,11 @@
     <script>
         // Inicialitzar icones de Lucide després que el DOM es carregui
         document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
+            if (window.lucide) {
+                lucide.createIcons();
+            } else {
+                console.warn("Lucide no s'ha carregat, les icones no es veuran.");
+            }
         });
     </script>
 </body>

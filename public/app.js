@@ -32,10 +32,16 @@ async function api(url, opt) {
 }
 
 async function load() {
-  const data = await api('/api/bootstrap');
-  S = { ...S, ...data };
   renderTabs();
-  render()
+  render();
+  try {
+    const data = await api('/api/bootstrap');
+    S = { ...S, ...data };
+    renderTabs();
+    render();
+  } catch (e) {
+    console.error("Error carregant dades inicials:", e);
+  }
 }
 
 function renderTabs() {
@@ -47,7 +53,7 @@ function renderTabs() {
       <span>${t}</span>
     </button>
   `).join('');
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 
 function changeTab(t) {
@@ -64,7 +70,7 @@ function toast(msg, type = 'success') {
   const icon = type === 'success' ? 'check-circle' : 'alert-circle';
   t.innerHTML = `<i data-lucide="${icon}"></i> <span>${msg}</span>`;
   container.appendChild(t);
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
   setTimeout(() => t.remove(), 4000);
 }
 
@@ -105,7 +111,7 @@ function render() {
   $('#current-tab-desc').textContent = tabConfig[tab].desc;
   
   if (!selectedModulId && S.moduls?.length) selectedModulId = S.moduls[0].id;
-  const activeModul = S.moduls.find(m => m.id == selectedModulId);
+  const activeModul = S.moduls?.find(m => m.id == selectedModulId);
   $('#modul-active-tag').textContent = activeModul ? `${activeModul.codi} · ${activeModul.nom}` : 'Cap mòdul seleccionat';
 
   if (tab == 'Resum') A.innerHTML = dashboardView();
@@ -119,20 +125,20 @@ function render() {
   if (tab == 'Resultats') A.innerHTML = resultatsMatrixView();
   if (tab == 'Informes') A.innerHTML = informesView();
   
-  lucide.createIcons();
+  if (window.lucide) lucide.createIcons();
 }
 
 function dashboardView() {
   return `
     <div class="grid">
-      ${card('Mòduls', S.moduls.length, 'book')}
-      ${card('Projectes', S.projectes.length, 'clipboard')}
-      ${card('Usuaris', S.alumnes.length, 'user')}
-      ${card('Grups', S.grups.length, 'users')}
+      ${card('Mòduls', S.moduls?.length || 0, 'book')}
+      ${card('Projectes', S.projectes?.length || 0, 'clipboard')}
+      ${card('Usuaris', S.alumnes?.length || 0, 'user')}
+      ${card('Grups', S.grups?.length || 0, 'users')}
     </div>
     <div class="card" style="margin-top: 24px">
       <h2><i data-lucide="info"></i> Estat de l’avaluació</h2>
-      <p>Actualment l’aplicació v11 gestiona <strong>${S.ras.length} RA</strong> i <strong>${S.cas.length} CA</strong> repartits en <strong>${S.moduls.length} mòduls</strong>.</p>
+      <p>Actualment l’aplicació v11 gestiona <strong>${S.ras?.length || 0} RA</strong> i <strong>${S.cas?.length || 0} CA</strong> repartits en <strong>${S.moduls?.length || 0} mòduls</strong>.</p>
       <div class="actions">
         <button onclick="tab='Activitats';renderTabs();render()">Gestionar Activitats</button>
         <button class="secondary" onclick="recalc()">Actualitzar Notes</button>
@@ -247,7 +253,7 @@ function activitatsView() {
         ${formProjectes()}
         ${wrap('Llistat d’activitats', `
           <div class="project-list-rich">
-            ${S.projectes.map(x => `
+            ${(S.projectes || []).map(x => `
               <div class="project-card-item ${x.id == selectedProjectId ? 'active' : ''}" onclick="selectedProjectId=${x.id};render()">
                 <div class="project-card-icon">
                   <i data-lucide="${x.tipus_nom?.toLowerCase().includes('sintesi') ? 'star' : 'file-text'}"></i>
@@ -448,7 +454,7 @@ function grupsView() {
           <table>
             <thead><tr><th>Nom</th><th>Curs</th><th>Alumnes</th><th></th></tr></thead>
             <tbody>
-              ${S.grups.map(g => `<tr><td><strong>${g.nom}</strong></td><td>${g.curs || ''}</td><td><span class="pill">${g.alumnes}</span></td><td class="actions"><button class="secondary mini" onclick="S.editingGroupId=${g.id};render()">Editar</button><button class="danger mini" onclick="del('grups',${g.id})">Eliminar</button></td></tr>`).join('')}
+              ${(S.grups || []).map(g => `<tr><td><strong>${g.nom}</strong></td><td>${g.curs || ''}</td><td><span class="pill">${g.alumnes}</span></td><td class="actions"><button class="secondary mini" onclick="S.editingGroupId=${g.id};render()">Editar</button><button class="danger mini" onclick="del('grups',${g.id})">Eliminar</button></td></tr>`).join('')}
             </tbody>
           </table>
         `, 'list')}
@@ -467,13 +473,13 @@ async function saveGrup() {
 function usuarisView() {
   const editing = S.editingAlumneId ? S.alumnes.find(a => a.id == S.editingAlumneId) : null;
   const filterId = S.filterGroupId;
-  const filteredAlumnes = filterId ? S.alumnes.filter(a => a.grup_id == filterId) : S.alumnes;
+  const filteredAlumnes = filterId ? (S.alumnes || []).filter(a => a.grup_id == filterId) : (S.alumnes || []);
   return `
     <div class="grid">
       <div class="wide">${wrap(editing ? 'Modificar usuari' : 'Gestió d’usuaris', `<div class="grid"><div><label>Grup</label><select id="ag">${opts(S.grups)}</select><label>Nom</label><input id="anom" value="${editing?.nom || ''}"><label>Cognoms</label><input id="acog" value="${editing?.cognoms || ''}"><button onclick="saveAlumne()">${editing ? 'Desar' : 'Afegir'}</button></div><div style="border-left: 1px solid #eee; padding-left: 20px"><label>Importació CSV</label><input id="csv" type="file" accept=".csv"><button class="secondary" onclick="importar()">Importar</button></div></div>`, 'user-plus')}</div>
       <div class="wide">
         ${wrap('Llistat d’usuaris', `
-          <div class="module-toolbar"><select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()"><option value="all">Tots els grups</option>${S.grups.map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}</select></div>
+          <div class="module-toolbar"><select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()"><option value="all">Tots els grups</option>${(S.grups || []).map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}</select></div>
           <table><thead><tr><th>Grup</th><th>Cognoms, Nom</th><th></th></tr></thead><tbody>${filteredAlumnes.map(a => `<tr><td><span class="pill">${a.grup_nom || '—'}</span></td><td><strong>${a.cognoms}, ${a.nom}</strong></td><td class="actions"><button class="secondary mini" onclick="S.editingAlumneId=${a.id};render()">Editar</button><button class="danger mini" onclick="del('alumnes',${a.id})">Eliminar</button></td></tr>`).join('')}</tbody></table>
         `, 'users')}
       </div>
@@ -568,7 +574,7 @@ function notesView() {
       <div class="sidebar-content">
         ${wrap('Selecciona Activitat', `
           <div class="project-list-rich">
-            ${S.projectes.map(x => `
+            ${(S.projectes || []).map(x => `
               <div class="project-card-item ${x.id == selectedProjectId ? 'active' : ''}" onclick="selectedProjectId=${x.id};render()">
                 <div class="project-card-icon">
                   <i data-lucide="${x.tipus_nom?.toLowerCase().includes('sintesi') ? 'star' : 'file-text'}"></i>
@@ -595,7 +601,7 @@ function notesView() {
               <div class="actions">
                 <select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()">
                   <option value="all">Tots els grups</option>
-                  ${S.grups.map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}
+                  ${(S.grups || []).map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}
                 </select>
                 <button onclick="saveBulkGrades(${p.id})"><i data-lucide="save"></i> Gravar tot</button>
               </div>
@@ -709,7 +715,7 @@ function informesView() {
           <div class="module-toolbar" style="grid-template-columns: 1fr">
             <select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()">
               <option value="all">Tots els grups</option>
-              ${S.grups.map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}
+              ${(S.grups || []).map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}
             </select>
           </div>
           <div class="alumne-list-rich">
@@ -765,7 +771,7 @@ function seguimentView() {
     <div class="module-toolbar">
       <select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()">
         <option value="all">Tots els grups</option>
-        ${S.grups.map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}
+        ${(S.grups || []).map(g => `<option value="${g.id}" ${filterId == g.id ? 'selected' : ''}>${g.nom}</option>`).join('')}
       </select>
       <div class="actions">
         <button class="secondary" onclick="window.print()"><i data-lucide="printer"></i> Imprimir</button>
