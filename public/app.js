@@ -114,15 +114,35 @@ async function load() {
 }
 
 function renderTabs() {
-  const tabsEl = $('#tabs');
-  if (!tabsEl) return;
-  tabsEl.innerHTML = tabs.map(t => `
-    <button class="nav-item ${t == tab ? 'active' : ''}" onclick="changeTab('${t}')">
-      <i data-lucide="${tabConfig[t].icon}"></i>
-      <span>${t}</span>
-    </button>
-  `).join('');
-  if (window.lucide) lucide.createIcons();
+  try {
+    const tabsEl = $('#tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = tabs.map(t => {
+      const config = tabConfig[t] || { icon: 'help-circle' };
+      return `
+        <button class="nav-item ${t == tab ? 'active' : ''}" onclick="changeTab('${t}')">
+          <i data-lucide="${config.icon}"></i>
+          <span>${t}</span>
+        </button>
+      `;
+    }).join('');
+    
+    // Actualitzar títols de la barra superior
+    const currentCfg = tabConfig[tab] || { icon: 'home', desc: '' };
+    $('#current-tab-title').innerText = tab;
+    $('#current-tab-desc').innerText = currentCfg.desc;
+    
+    const activeModul = (S.moduls || []).find(m => m.id == selectedModulId);
+    const tagEl = $('#modul-active-tag');
+    if (tagEl) {
+      tagEl.innerText = activeModul ? activeModul.nom : 'Cap mòdul seleccionat';
+      tagEl.className = 'pill ' + (activeModul ? 'active' : '');
+    }
+
+    if (window.lucide) lucide.createIcons();
+  } catch (e) {
+    console.error("Error en renderTabs:", e);
+  }
 }
 
 function changeTab(t) {
@@ -132,15 +152,22 @@ function changeTab(t) {
 }
 
 function toast(msg, type = 'success') {
-  const container = $('#toast-container');
-  if (!container) return;
-  const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  const icon = type === 'success' ? 'check-circle' : 'alert-circle';
-  t.innerHTML = `<i data-lucide="${icon}"></i> <span>${msg}</span>`;
-  container.appendChild(t);
-  if (window.lucide) lucide.createIcons();
-  setTimeout(() => t.remove(), 4000);
+  try {
+    const container = $('#toast-container');
+    if (!container) return;
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    const icon = type === 'success' ? 'check-circle' : 'alert-circle';
+    t.innerHTML = `<i data-lucide="${icon}"></i> <span>${msg}</span>`;
+    container.appendChild(t);
+    if (window.lucide && typeof lucide.createIcons === 'function') {
+      lucide.createIcons();
+    }
+    setTimeout(() => t.remove(), 4000);
+  } catch (e) {
+    console.warn("Error mostrant toast:", e);
+    alert(msg); // Fallback si el sistema de toast falla
+  }
 }
 
 function fmt(n) { return n == null ? '—' : Number(n).toFixed(2) }
@@ -175,29 +202,47 @@ async function upd(t, id, data) {
 }
 
 function render() {
-  const A = $('#app');
-  if (!A) return;
+  try {
+    const A = $('#app');
+    if (!A) return;
 
-  // Actualitzar Top Bar
-  $('#current-tab-title').textContent = tab;
-  $('#current-tab-desc').textContent = tabConfig[tab].desc;
+    // Actualitzar Top Bar amb seguretat
+    const currentCfg = tabConfig[tab] || { desc: '' };
+    const titleEl = $('#current-tab-title');
+    const descEl = $('#current-tab-desc');
+    if (titleEl) titleEl.textContent = tab;
+    if (descEl) descEl.textContent = currentCfg.desc;
 
-  if (!selectedModulId && S.moduls?.length) selectedModulId = S.moduls[0].id;
-  const activeModul = S.moduls?.find(m => m.id == selectedModulId);
-  $('#modul-active-tag').textContent = activeModul ? `${activeModul.codi} · ${activeModul.nom}` : 'Cap mòdul seleccionat';
+    if (!selectedModulId && (S.moduls || []).length) selectedModulId = S.moduls[0].id;
+    const activeModul = (S.moduls || []).find(m => m.id == selectedModulId);
+    const tagEl = $('#modul-active-tag');
+    if (tagEl) {
+      tagEl.textContent = activeModul ? `${activeModul.codi} · ${activeModul.nom}` : 'Cap mòdul seleccionat';
+    }
 
-  if (tab == 'Resum') A.innerHTML = dashboardView();
-  if (tab == 'Currículum') A.innerHTML = curriculumView();
-  if (tab == 'Tipus activitat') A.innerHTML = tipusActivitatView();
-  if (tab == 'Activitats') A.innerHTML = activitatsView();
-  if (tab == 'Gestió de grups') A.innerHTML = grupsView();
-  if (tab == 'Gestió usuaris') A.innerHTML = usuarisView();
-  if (tab == 'Notes') A.innerHTML = notesView();
-  if (tab == 'Seguiment') A.innerHTML = seguimentView();
-  if (tab == 'Resultats') A.innerHTML = resultatsMatrixView();
-  if (tab == 'Informes') A.innerHTML = informesView();
+    // Selecció de vista
+    let html = '';
+    if (tab == 'Resum') html = dashboardView();
+    else if (tab == 'Currículum') html = curriculumView();
+    else if (tab == 'Tipus activitat') html = tipusActivitatView();
+    else if (tab == 'Activitats') html = activitatsView();
+    else if (tab == 'Gestió de grups') html = grupsView();
+    else if (tab == 'Gestió usuaris') html = usuarisView();
+    else if (tab == 'Notes') html = notesView();
+    else if (tab == 'Seguiment') html = seguimentView();
+    else if (tab == 'Resultats') html = resultatsMatrixView();
+    else if (tab == 'Informes') html = informesView();
+    
+    A.innerHTML = html;
 
-  if (window.lucide) lucide.createIcons();
+    if (window.lucide && typeof lucide.createIcons === 'function') {
+      lucide.createIcons();
+    }
+  } catch (e) {
+    console.error("Error crític en render:", e);
+    const A = $('#app');
+    if (A) A.innerHTML = `<div class="status warn">Error al dibuixar la vista: ${e.message}</div>`;
+  }
 }
 
 function dashboardView() {
