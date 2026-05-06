@@ -4,8 +4,23 @@ let S = { editingGroupId: null, editingAlumneId: null, filterGroupId: null, sele
 // --- CONFIGURACIÓ SUPABASE ---
 const SUPABASE_URL = 'https://cuvpsnbtsylmqtgiekko.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dnBzbmJ0c3lsbXF0Z2lla2tvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzQ1NzAsImV4cCI6MjA5MzY1MDU3MH0.hfZaycaGNh6vSUgko5_LOpriW98zl-pvhSVP3GQXdF8';
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let supabase = null;
+
+function initSupabase() {
+  if (supabase) return true;
+  try {
+    if (window.supabase) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      return true;
+    }
+  } catch (e) {
+    console.error("Error inicialitzant Supabase:", e);
+  }
+  return false;
+}
 // -----------------------------
+
+
 
 
 const tabConfig = {
@@ -47,7 +62,12 @@ async function api(url, opt) {
 async function load() {
   renderTabs();
   render();
-  if (!supabase) return;
+  
+  if (!initSupabase()) {
+    console.warn("Esperant a la llibreria de Supabase...");
+    setTimeout(load, 500); // Ho tornem a intentar en mig segon
+    return;
+  }
 
   try {
     // Carreguem totes les taules en paral·lel
@@ -1067,5 +1087,11 @@ function seguimentView() {
   `, 'table');
 }
 
-load().catch(console.error);
-lucide.createIcons();
+document.addEventListener('DOMContentLoaded', () => {
+  renderTabs();
+  render();
+  load().catch(e => {
+    console.error("Error en la càrrega inicial:", e);
+    toast("Error en carregar les dades: " + e.message, 'error');
+  });
+});
