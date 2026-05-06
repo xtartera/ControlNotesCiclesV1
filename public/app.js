@@ -1127,11 +1127,28 @@ function generateReportHTML(data) {
 
 function seguimentView() {
   const projectes = [...S.projectes].sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
-  const notes = new Map((S.notes_projecte || []).map(n => [`${n.alumne_id}-${n.projecte_id}`, n]));
+  const notesMap = new Map((S.notes_projecte || []).map(n => [`${n.alumne_id}-${n.projecte_id}`, n]));
   const filterId = S.filterGroupId;
   const filteredAlumnes = filterId ? S.alumnes.filter(a => a.grup_id == filterId) : S.alumnes;
 
-  return wrap('Llençol de Seguiment', `
+  const tableHeader = projectes.map(p => `
+    <th title="${p.nom} (${p.modul_codi})">
+      <div style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px">${p.nom}</div>
+      <small style="font-size: 9px; color: var(--text-muted); font-weight: 500">${p.tipus_nom || ''}</small>
+    </th>
+  `).join('');
+
+  const tableRows = filteredAlumnes.map(a => {
+    const cells = projectes.map(p => {
+      const n = notesMap.get(`${a.id}-${p.id}`);
+      const notaVal = (n && n.nota != null) ? Number(n.nota) : null;
+      const cls = notaVal !== null ? (notaVal >= 5 ? 'okcell' : 'kocell') : '';
+      return `<td class="${cls}" style="text-align: center; font-weight: 600">${fmt(notaVal)}</td>`;
+    }).join('');
+    return `<tr><th class="sticky-col">${a.cognoms}, ${a.nom}</th>${cells}</tr>`;
+  }).join('');
+
+  const html = `
     <div class="module-toolbar">
       <select onchange="S.filterGroupId=this.value==='all'?null:this.value;render()">
         <option value="all">Tots els grups</option>
@@ -1146,32 +1163,17 @@ function seguimentView() {
         <thead>
           <tr>
             <th class="sticky-col">Alumne</th>
-            ${projectes.map(p => `
-              <th title="${p.nom} (${p.modul_codi})">
-                <div style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px">
-                  ${p.nom}
-                </div>
-                <small style="font-size: 9px; color: var(--text-muted); font-weight: 500">${p.tipus_nom || ''}</small>
-              </th>
-            `).join('')}
+            ${tableHeader}
           </tr>
         </thead>
         <tbody>
-          ${filteredAlumnes.map(a => `
-            <tr>
-              <th class="sticky-col">${a.cognoms}, ${a.nom}</th>
-              ${projectes.map(p => {
-    const n = notes.get(`${a.id}-${p.id}`);
-    const notaVal = (n && n.nota != null) ? Number(n.nota) : null;
-    const cls = notaVal !== null ? (notaVal >= 5 ? 'okcell' : 'kocell') : '';
-    return `<td class="${cls}" style="text-align: center; font-weight: 600">${fmt(notaVal)}</td>`;
-  }).join('')}
-            </tr>
-          `).join('')}
+          ${tableRows}
         </tbody>
       </table>
     </div>
-  `, 'layout');
+  `;
+
+  return wrap('Llençol de Seguiment', html, 'layout');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
