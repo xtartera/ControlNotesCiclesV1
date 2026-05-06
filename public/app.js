@@ -371,12 +371,20 @@ function weightingView(pid) {
   const currentRA = ras.find(r => r.id == S.selectedRaIdWeight);
   const casOfRA = (S.cas || []).filter(c => c.ra_id == S.selectedRaIdWeight);
 
+  // Càlcul de Cobertura Global del Mòdul (Suma de pesos de Currículum dels RA vinculats)
+  const rasAmbGomet = ras.filter(r => p_ras.some(pr => pr.ra_id == r.id));
+  const pesCurrAcumulat = rasAmbGomet.reduce((acc, r) => acc + (Number(r.pes)||0), 0);
+  const pesCurrRestant = 100 - pesCurrAcumulat;
+
   return `
     <div class="card" style="margin-top: 32px; border-top: 4px solid var(--primary); animation: slideUp 0.3s ease">
-      <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px">
+      <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px">
         <div>
           <h2 style="margin:0"><i data-lucide="layers"></i> Configuració de: <strong>${p.nom}</strong></h2>
-          <p class="desc-tiny">Selecciona un RA i marca els criteris (CA) que s'avaluen en aquesta activitat.</p>
+          <div style="display:flex; gap:16px; margin-top:8px">
+            <span class="pill ${pesCurrAcumulat > 100 ? 'danger' : 'info'}" style="font-size:11px">Acumulat RA: <strong>${pesCurrAcumulat}%</strong></span>
+            <span class="pill ${pesCurrRestant < 0 ? 'danger' : 'secondary'}" style="font-size:11px">Resten: <strong>${pesCurrRestant}%</strong></span>
+          </div>
         </div>
         <button class="secondary mini" onclick="S.selectedProjectIdWeight=null;render()"><i data-lucide="x"></i> Tancar</button>
       </header>
@@ -384,16 +392,29 @@ function weightingView(pid) {
       <div class="grid" style="grid-template-columns: 300px 1fr; gap:32px">
         <!-- LLISTA DE RA -->
         <div class="ra-selector-list">
-          <h3>Resultats d'Aprenentatge</h3>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+            <h3 style="margin:0">RAs del Mòdul</h3>
+            <span class="desc-tiny">Resta per assignar</span>
+          </div>
           ${ras.map(r => {
+            const totalAcomulatRA = (S.projecte_ra || []).filter(pr => pr.ra_id == r.id).reduce((a, b) => a + (Number(b.pes)||0), 0);
+            const manca = 100 - totalAcomulatRA;
             const isLinked = p_ras.some(pr => pr.ra_id == r.id);
+            
             return `
               <div class="ra-item ${S.selectedRaIdWeight == r.id ? 'active' : ''}" onclick="S.selectedRaIdWeight=${r.id};render()">
                 <div style="display:flex; align-items:center; gap:12px; width:100%">
                   <input type="radio" name="ra_sel" ${S.selectedRaIdWeight == r.id ? 'checked' : ''} style="margin:0; width:auto">
                   <div style="flex:1">
-                    <strong>${r.codi}</strong>
-                    ${isLinked ? '<span class="status-dot green" title="Vinculat"></span>' : ''}
+                    <div style="display:flex; justify-content:space-between; align-items:center">
+                      <div style="display:flex; align-items:center">
+                        <strong>${r.codi}</strong>
+                        ${isLinked ? '<span class="status-dot green" style="margin-left:8px" title="Avaluat en aquesta activitat"></span>' : ''}
+                      </div>
+                      <span class="badge ${manca < 0 ? 'danger' : (manca === 0 ? 'success' : 'secondary')}" style="font-size:10px">
+                        ${manca < 0 ? '⚠️ '+Math.abs(manca)+'%' : (manca === 0 ? 'Complet' : manca+'% rest.')}
+                      </span>
+                    </div>
                   </div>
                   <i data-lucide="chevron-right" style="width:16px; opacity:0.5"></i>
                 </div>
@@ -404,17 +425,29 @@ function weightingView(pid) {
 
         <!-- LLISTA DE CA (CHECKBOXES) -->
         <div class="ca-selector-grid">
-          ${currentRA ? `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; background: #f1f5f9; padding: 12px 16px; border-radius: 12px;">
-              <h3 style="margin:0">Criteris de ${currentRA.codi}</h3>
-              <div style="display:flex; align-items:center; gap:10px">
-                <label style="margin:0; font-weight:600; font-size:13px">Pes en aquest RA:</label>
-                <div class="pill primary" style="padding: 4px 12px; display:flex; align-items:center; gap:4px">
-                  <input type="number" value="${p_ras.find(pr=>pr.ra_id==currentRA.id)?.pes || 0}" 
-                         style="width:70px; border:none; background:transparent; font-weight:bold; color:white; text-align:center; outline:none" 
-                         onchange="updateRAWeight(${pid}, ${currentRA.id}, this.value)">
-                  <span style="font-weight:bold; color:white">%</span>
+          ${currentRA ? (() => {
+            const totalRA = (S.projecte_ra || []).filter(pr => pr.ra_id == currentRA.id).reduce((acc, pr) => acc + (Number(pr.pes)||0), 0);
+            const remanent = 100 - totalRA;
+            
+            return `
+            <div style="background: #f1f5f9; padding: 16px; border-radius: 12px; margin-bottom: 24px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px">
+                <h3 style="margin:0">Criteris de ${currentRA.codi}</h3>
+                <div style="display:flex; align-items:center; gap:10px">
+                  <label style="margin:0; font-weight:600; font-size:13px; color: #475569">Pes en aquesta activitat:</label>
+                  <div style="background: white; border: 2px solid var(--primary); padding: 4px 12px; border-radius: 8px; display:flex; align-items:center; gap:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05)">
+                    <input type="number" value="${p_ras.find(pr=>pr.ra_id==currentRA.id)?.pes || 0}" 
+                           style="width:80px; border:none; background:transparent; font-weight:800; color:var(--primary); text-align:center; outline:none; font-size: 16px" 
+                           onchange="updateRAWeight(${pid}, ${currentRA.id}, this.value)">
+                    <span style="font-weight:800; color:var(--primary); font-size: 16px">%</span>
+                  </div>
                 </div>
+              </div>
+              <div style="display:flex; justify-content:flex-end; font-size: 12px; gap: 15px">
+                 <span style="color: ${totalRA > 100 ? '#ef4444' : '#64748b'}">Total acumulat al RA: <strong>${totalRA}%</strong></span>
+                 <span style="color: ${remanent < 0 ? '#ef4444' : (remanent === 0 ? '#10b981' : '#64748b')}">
+                   ${remanent < 0 ? `⚠️ T'has passat un <strong>${Math.abs(remanent)}%</strong>` : (remanent === 0 ? '✅ RA Completat (100%)' : `Resten: <strong>${remanent}%</strong>`)}
+                 </span>
               </div>
             </div>
             
@@ -437,12 +470,14 @@ function weightingView(pid) {
                 `;
               }).join('') || '<p class="muted">Aquest RA no té criteris definits.</p>'}
             </div>
-          ` : '<p class="muted">Selecciona un RA de l\'esquerra.</p>'}
+            `;
+          })() : '<p class="muted" style="text-align:center; padding: 40px">Selecciona un RA de l\'esquerra per configurar els seus criteris.</p>'}
         </div>
       </div>
     </div>
   `;
 }
+
 
 async function updateRAWeight(pid, raid, pes) {
   const existing = S.projecte_ra.find(pr => pr.projecte_id == pid && pr.ra_id == raid);
