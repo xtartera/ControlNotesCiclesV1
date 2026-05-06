@@ -64,7 +64,12 @@ let selectedProjectId = null;
 
 function renderTabs() {
   const T = $('#tabs'); if (!T) return;
-  T.innerHTML = tabs.map(t => `<div class="tab-item ${tab === t ? 'active' : ''}" onclick="tab='${t}';renderTabs();render()"><i data-lucide="${tabConfig[t].icon}"></i><span>${t}</span></div>`).join('');
+  T.innerHTML = tabs.map(t => `
+    <button class="nav-item ${tab === t ? 'active' : ''}" onclick="tab='${t}';renderTabs();render()">
+      <i data-lucide="${tabConfig[t].icon}"></i>
+      <span>${t}</span>
+    </button>
+  `).join('');
 }
 
 function render() {
@@ -89,13 +94,81 @@ function render() {
 function wrap(title, html, icon) { return `<section class="card"><h2><i data-lucide="${icon || 'circle'}"></i> ${title}</h2>${html}</section>`; }
 
 function dashboardView() {
+  const lastNotes = (S.notes_projecte || []).slice(0, 5);
+  
   return `
     <div class="dashboard-grid">
-      <div class="stat-card"><div class="stat-icon"><i data-lucide="users"></i></div><div class="stat-value">${S.alumnes?.length || 0}</div><div class="stat-label">Alumnes</div></div>
-      <div class="stat-card"><div class="stat-icon"><i data-lucide="layers"></i></div><div class="stat-value">${S.grups?.length || 0}</div><div class="stat-label">Grups</div></div>
-      <div class="stat-card"><div class="stat-icon"><i data-lucide="package"></i></div><div class="stat-value">${S.moduls?.length || 0}</div><div class="stat-label">Mòduls</div></div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="users"></i></div>
+        <div class="stat-info">
+          <div class="stat-value">${S.alumnes?.length || 0}</div>
+          <div class="stat-label">Alumnes</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #fef3c7; color: #d97706;"><i data-lucide="layers"></i></div>
+        <div class="stat-info">
+          <div class="stat-value">${S.grups?.length || 0}</div>
+          <div class="stat-label">Grups</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #ecfdf5; color: #059669;"><i data-lucide="book"></i></div>
+        <div class="stat-info">
+          <div class="stat-value">${S.moduls?.length || 0}</div>
+          <div class="stat-label">Mòduls</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #f5f3ff; color: #7c3aed;"><i data-lucide="target"></i></div>
+        <div class="stat-info">
+          <div class="stat-value">${S.projectes?.length || 0}</div>
+          <div class="stat-label">Activitats</div>
+        </div>
+      </div>
     </div>
-    <div style="margin-top: 24px">${wrap('Darreres notes', `<table><thead><tr><th>Alumne</th><th>Projecte</th><th>Nota</th></tr></thead><tbody>${(S.notes_projecte || []).slice(0, 5).map(n => `<tr><td>${n.alumne_nom} ${n.alumne_cognoms}</td><td>${n.projecte_nom}</td><td><strong>${fmt(n.nota)}</strong></td></tr>`).join('') || '<tr><td colspan="3" class="muted">No hi ha notes.</td></tr>'}</tbody></table>`, 'clock')}</div>
+
+    <div class="grid">
+      <div class="wide">
+        ${wrap('Darreres notes introduïdes', `
+          <div class="recent-activity-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Alumne</th>
+                  <th>Projecte / Activitat</th>
+                  <th style="text-align: center">Nota</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lastNotes.map(n => {
+                  const nota = Number(n.nota);
+                  let cls = '';
+                  if (nota >= 9) cls = 'excellent';
+                  else if (nota >= 5) cls = 'good';
+                  else cls = 'fail';
+                  
+                  return `
+                    <tr>
+                      <td>
+                        <div class="alumne-pill">
+                          <div class="avatar-small">${n.alumne_nom[0]}${n.alumne_cognoms[0]}</div>
+                          <strong>${n.alumne_nom} ${n.alumne_cognoms}</strong>
+                        </div>
+                      </td>
+                      <td>${n.projecte_nom}</td>
+                      <td style="text-align: center">
+                        <span class="nota-badge ${cls}">${fmt(n.nota)}</span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('') || '<tr><td colspan="3" style="text-align:center; padding: 40px; color: #94a3b8;">Encara no s\'ha introduït cap nota.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `, 'clock')}
+      </div>
+    </div>
   `;
 }
 
