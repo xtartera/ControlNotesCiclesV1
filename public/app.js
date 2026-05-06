@@ -114,34 +114,47 @@ async function load() {
 }
 
 function renderTabs() {
+  console.log("Iniciant renderTabs... Estat actual:", tab);
   try {
     const tabsEl = $('#tabs');
-    if (!tabsEl) return;
-    tabsEl.innerHTML = tabs.map(t => {
+    if (!tabsEl) {
+      console.error("No s'ha trobat l'element #tabs!");
+      return;
+    }
+    
+    let html = '';
+    tabs.forEach(t => {
       const config = tabConfig[t] || { icon: 'help-circle' };
-      return `
-        <button class="nav-item ${t == tab ? 'active' : ''}" onclick="changeTab('${t}')">
+      const activeClass = t === tab ? 'active' : '';
+      html += `
+        <button class="nav-item ${activeClass}" onclick="changeTab('${t}')">
           <i data-lucide="${config.icon}"></i>
           <span>${t}</span>
         </button>
       `;
-    }).join('');
+    });
+    tabsEl.innerHTML = html;
     
-    // Actualitzar títols de la barra superior
+    // Barra superior
     const currentCfg = tabConfig[tab] || { icon: 'home', desc: '' };
-    $('#current-tab-title').innerText = tab;
-    $('#current-tab-desc').innerText = currentCfg.desc;
+    const titleEl = $('#current-tab-title');
+    const descEl = $('#current-tab-desc');
+    if (titleEl) titleEl.innerText = tab;
+    if (descEl) descEl.innerText = currentCfg.desc;
     
-    const activeModul = (S.moduls || []).find(m => m.id == selectedModulId);
     const tagEl = $('#modul-active-tag');
     if (tagEl) {
+      const activeModul = (S.moduls || []).find(m => m.id == selectedModulId);
       tagEl.innerText = activeModul ? activeModul.nom : 'Cap mòdul seleccionat';
-      tagEl.className = 'pill ' + (activeModul ? 'active' : '');
     }
 
-    if (window.lucide) lucide.createIcons();
+    if (window.lucide && typeof lucide.createIcons === 'function') {
+      lucide.createIcons();
+    }
+    console.log("renderTabs finalitzat amb èxit.");
   } catch (e) {
-    console.error("Error en renderTabs:", e);
+    console.error("Error a renderTabs:", e);
+    alert("Error de menú: " + e.message);
   }
 }
 
@@ -1133,10 +1146,16 @@ function seguimentView() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderTabs();
-  render();
-  load().catch(e => {
-    console.error("Error en la càrrega inicial:", e);
-    toast("Error en carregar les dades: " + e.message, 'error');
-  });
+  console.log("DOM carregat. Iniciant app...");
+  try {
+    renderTabs();
+    render();
+    console.log("Renders inicials fets. Carregant dades...");
+    load().catch(e => {
+      console.error("Error a load():", e);
+    });
+  } catch (e) {
+    console.error("Error crític d'arrencada:", e);
+    alert("Error d'arrencada: " + e.message);
+  }
 });
