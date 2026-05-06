@@ -48,8 +48,8 @@ let tab = 'Resum';
 const tabConfig = {
   'Resum': { icon: 'home', desc: 'Visió general.' },
   'Currículum': { icon: 'book-open', desc: 'Mòduls i RA/CA.' },
-  'Activitats': { icon: 'target', desc: 'Projectes i pesos.' },
   'Tipus activitat': { icon: 'settings', desc: 'Pesos per defecte.' },
+  'Activitats': { icon: 'target', desc: 'Projectes i pesos.' },
   'Qualificacions': { icon: 'edit-3', desc: 'Notes per projecte.' },
   'Seguiment': { icon: 'layout', desc: 'Llençol de notes.' },
   'Resultats': { icon: 'bar-chart-2', desc: 'Notes de RA.' },
@@ -301,14 +301,17 @@ function activitatsView() {
 
     <div class="grid">
       <div class="card">
-        <h2><i data-lucide="plus-circle"></i> Nova Activitat</h2>
+        <h2><i data-lucide="${S.editingProjectId ? 'edit' : 'plus-circle'}"></i> ${S.editingProjectId ? 'Modificar' : 'Nova'} Activitat</h2>
         <div style="display:grid; gap:12px">
           <input type="hidden" id="pm" value="${selectedModulId}">
           <div><label>Tipus d'activitat</label><select id="pt" style="margin:0">${opts(S.tipus_activitat)}</select></div>
-          <div><label>Nom de l'activitat</label><input id="pn" placeholder="Ex: Projecte Final" style="margin:0"></div>
-          <button style="margin-top:10px" onclick="create('projectes',{modul_id:num('pm'),tipus_id:num('pt'),nom:val('pn')})">
-            <i data-lucide="save"></i> Crear activitat
-          </button>
+          <div><label>Nom de l'activitat</label><input id="pn" placeholder="Ex: Projecte Final" style="margin:0" value="${S.editingProjectId ? (S.projectes.find(p=>p.id==S.editingProjectId)?.nom||'') : ''}"></div>
+          <div style="display:flex; gap:8px; margin-top:10px">
+            <button style="flex:1" onclick="saveProject()">
+              <i data-lucide="save"></i> ${S.editingProjectId ? 'Actualitzar' : 'Crear'}
+            </button>
+            ${S.editingProjectId ? `<button class="secondary" onclick="S.editingProjectId=null;render()"><i data-lucide="x"></i></button>` : ''}
+          </div>
         </div>
       </div>
       <div class="wide">
@@ -324,11 +327,14 @@ function activitatsView() {
               </thead>
               <tbody>
                 ${projectesFiltrats.map(p => `
-                  <tr>
+                  <tr class="${S.selectedProjectIdWeight == p.id ? 'selected-row' : ''}">
                     <td><strong>${p.nom}</strong></td>
                     <td><span class="type-tag">${p.tipus_nom || 'General'}</span></td>
                     <td style="text-align:right; white-space:nowrap">
-                      <button class="secondary mini" onclick="editProject(${p.id}, '${p.nom}', ${p.tipus_id})" title="Editar nom o tipus">
+                      <button class="primary mini" onclick="S.selectedProjectIdWeight=${p.id};render()" title="Configurar pesos RA/CA">
+                        <i data-lucide="scale"></i> Ponderar
+                      </button>
+                      <button class="secondary mini" onclick="S.editingProjectId=${p.id};render()" title="Editar">
                         <i data-lucide="edit-2"></i>
                       </button>
                       <button class="btn-icon-danger" onclick="del('projectes',${p.id})"><i data-lucide="trash-2"></i></button>
@@ -341,19 +347,67 @@ function activitatsView() {
         `, 'list')}
       </div>
     </div>
+
+    ${S.selectedProjectIdWeight ? weightingView(S.selectedProjectIdWeight) : ''}
   `;
 }
 
-async function editProject(id, oldNom, oldTipusId) {
-  const nouNom = prompt('Nou nom de l\'activitat:', oldNom);
-  if (nouNom === null) return;
-  
-  // Aquí podríem fer un selector més complex, però per simplicitat usem prompt o un petit "hack" 
-  // En una app premium de veritat, obriríem un modal. Per ara ho farem directe:
-  const nouTipusId = prompt('ID del nou tipus (deixa-ho igual per no canviar):', oldTipusId);
-  if (nouTipusId === null) return;
+function weightingView(pid) {
+  const p = S.projectes.find(x => x.id == pid);
+  const ras = (S.ras || []).filter(r => r.modul_id == p.modul_id);
+  const p_ras = (S.projecte_ra || []).filter(pr => pr.projecte_id == pid);
 
-  await upd('projectes', id, { nom: nouNom, tipus_id: Number(nouTipusId) });
+  return `
+    <div class="card" style="margin-top: 32px; border-top: 4px solid var(--primary)">
+      <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+        <h2 style="margin:0"><i data-lucide="scale"></i> Ponderació de: <strong>${p.nom}</strong></h2>
+        <button class="secondary mini" onclick="S.selectedProjectIdWeight=null;render()"><i data-lucide="x"></i> Tancar</button>
+      </header>
+      
+      <div class="grid" style="grid-template-columns: 1fr 1fr">
+        ${wrap('Vincular amb RA', `
+          <div style="display:flex; gap:8px; margin-bottom:16px">
+            <select id="sel-ra">${opts(ras, 'codi')}</select>
+            <button onclick="addWeight('ra', ${pid}, num('sel-ra'))">Vincular RA</button>
+          </div>
+          <table class="recent-activity-table">
+            <thead><tr><th>RA</th><th>Pes (%)</th><th></th></tr></thead>
+            <tbody>
+              ${p_ras.map(pr => `
+                <tr>
+                  <td><strong>${pr.ra_codi}</strong></td>
+                  <td><input type="number" value="${pr.pes}" style="width:70px" onchange="upd('projecte_ra', ${pr.id}, {pes:this.value})"> %</td>
+                  <td style="text-align:right"><button class="btn-icon-danger" onclick="del('projecte_ra', ${pr.id})"><i data-lucide="trash-2"></i></button></td>
+                </tr>
+              `).join('') || '<tr><td colspan="3" class="muted">No vinculat a cap RA.</td></tr>'}
+            </tbody>
+          </table>
+        `, 'award')}
+
+        ${wrap('Vincular amb CA', `
+           <p class="desc-tiny">Properament: Vinculació detallada per CA per a un càlcul més precís.</p>
+        `, 'check-square')}
+      </div>
+    </div>
+  `;
+}
+
+async function addWeight(type, pid, targetId) {
+  if (type === 'ra') {
+    await create('projecte_ra', { projecte_id: pid, ra_id: targetId, pes: 0 });
+  }
+}
+
+async function saveProject() {
+  const id = S.editingProjectId;
+  const data = { modul_id: num('pm'), tipus_id: num('pt'), nom: val('pn') };
+  if (id) {
+    await upd('projectes', id, data);
+    S.editingProjectId = null;
+  } else {
+    await create('projectes', data);
+  }
+  await load();
 }
 
 function notesView() {
