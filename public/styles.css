@@ -712,32 +712,29 @@ td {
     margin-bottom: 12px;
 }
 
-/* Tipus Activitat Compact Layout */
+/* Tipus Activitat - FORÇAR COSTAT A COSTAT */
 .types-grid {
-    display: grid;
-    grid-template-columns: 320px 1fr;
+    display: flex !important;
+    flex-direction: row !important;
     gap: 20px;
     align-items: start;
-}
-
-@media (max-width: 900px) {
-    .types-grid {
-        grid-template-columns: 1fr;
-    }
+    width: 100%;
 }
 
 .types-grid .card {
+    width: 320px;
+    flex-shrink: 0;
     padding: 16px;
 }
 
-.types-grid input, .types-grid select {
-    padding: 8px;
-    font-size: 14px;
+.types-grid .wide {
+    flex-grow: 1;
+    margin: 0 !important;
 }
 
-.types-grid label {
-    font-size: 12px;
-    margin-bottom: 4px;
+.types-grid input {
+    padding: 6px 10px !important;
+    font-size: 14px;
 }
 
 
