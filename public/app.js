@@ -182,8 +182,14 @@ function curriculumView() {
       <div style="display:flex; gap: 16px; align-items:center;">
         <div style="flex:1">
           <label>Mòdul actiu</label>
-          <select onchange="selectedModulId=this.value;render()" style="margin:0">${opts(mods, 'codi')}</select>
+          <div style="display:flex; gap:8px">
+            <select onchange="selectedModulId=this.value;render()" style="margin:0">${opts(mods, 'codi')}</select>
+            <button class="danger mini" onclick="delModule(selectedModulId)" title="Esborrar mòdul sencer">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
         </div>
+
         <div style="display:flex; gap: 10px; margin-top: 20px">
           <button class="secondary" onclick="api('/api/moduls/'+selectedModulId+'/normalitzar', {method:'POST'}).then(load)">
             <i data-lucide="scale"></i> Repartir Pesos
@@ -228,7 +234,7 @@ function curriculumView() {
                 </div>
               </div>
             `).join('')}
-            <button class="btn mini secondary" style="margin-top:10px; width:100%" onclick="alert('Afegir CA manualment properament')">
+            <button class="btn mini secondary" style="margin-top:10px; width:100%" onclick="createCA(${ra.id})">
               <i data-lucide="plus"></i> Afegir CA
             </button>
           </div>
@@ -238,10 +244,33 @@ function curriculumView() {
           <i data-lucide="book-open"></i>
           <h3>No hi ha RAs</h3>
           <p>Importa un fitxer CSV o afegeix-los manualment.</p>
+          <button onclick="createRA(selectedModulId)" class="primary"><i data-lucide="plus"></i> Crear RA manualment</button>
         </div>
       `}
     </div>
+    ${ras.length > 0 ? `<div style="margin-top:20px; display:flex; justify-content:center"><button class="secondary" onclick="createRA(selectedModulId)"><i data-lucide="plus"></i> Afegir nou RA</button></div>` : ''}
   `;
+}
+
+async function delModule(id) {
+  if (!id) return;
+  if (confirm('Estàs segur que vols esborrar aquest mòdul i TOTS els seus RA, CA i notes vinculades? Aquesta acció no es pot desfer.')) {
+    await api(`/api/moduls/${id}`, { method: 'DELETE' });
+    selectedModulId = null;
+    await load();
+  }
+}
+
+async function createRA(mid) {
+  const codi = prompt('Codi del RA (Ex: RA1):');
+  if (!codi) return;
+  await create('ras', { modul_id: mid, codi, descripcio: '', pes: 0 });
+}
+
+async function createCA(raid) {
+  const codi = prompt('Codi del CA (Ex: a):');
+  if (!codi) return;
+  await create('cas', { ra_id: raid, codi, descripcio: '', pes: 0 });
 }
 
 async function importarCurriculum(input) {
