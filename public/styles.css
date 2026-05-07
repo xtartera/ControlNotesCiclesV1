@@ -428,6 +428,44 @@ td {
     to { transform: translateX(0); opacity: 1; }
 }
 
+/* Nota Badges */
+.nota-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 13px;
+    min-width: 32px;
+    text-align: center;
+}
+
+.nota-badge.excellent { background: #ecfdf5; color: #059669; border: 1px solid #10b981; }
+.nota-badge.good { background: #f0fdf4; color: #16a34a; border: 1px solid #22c55e; }
+.nota-badge.fail { background: #fef2f2; color: #dc2626; border: 1px solid #ef4444; }
+.nota-badge.secondary { background: #f1f5f9; color: #64748b; }
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.status-dot.green { background: #10b981; }
+.status-dot.red { background: #ef4444; }
+
+.selected-row {
+    background: #f0f9ff !important;
+}
+
+.weight-tag {
+    background: var(--primary);
+    color: white;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-weight: 700;
+}
+
 /* Report Styles */
 .report-card {
     max-width: 800px;

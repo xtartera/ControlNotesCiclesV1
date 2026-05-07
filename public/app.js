@@ -1,5 +1,9 @@
 const $ = s => document.querySelector(s);
 let S = { editingGroupId: null, editingAlumneId: null, filterGroupId: null, selectedAlumneIdForReport: null };
+let selectedModulId = null;
+let selectedProjectId = null;
+let selectedGrupId = null;
+let selectedRaIdWeight = null;
 
 // --- COMUNICACIÓ AMB EL SERVIDOR ---
 async function api(path, options = {}) {
@@ -32,7 +36,7 @@ async function del(table, id) { if (confirm('Segur?')) { await api(`/api/${table
 // Helpers
 const val = id => document.getElementById(id)?.value || '';
 const num = id => Number(val(id));
-const opts = (arr, label = 'nom') => (arr||[]).map(x => `<option value="${x.id}">${x[label]}</option>`).join('');
+const opts = (arr, label = 'nom', selected = null) => (arr||[]).map(x => `<option value="${x.id}" ${x.id == selected ? 'selected' : ''}>${x[label]}</option>`).join('');
 const toast = (msg, type = 'success') => {
   const c = $('#toast-container'); if(!c) return;
   const t = document.createElement('div');
@@ -57,10 +61,7 @@ const tabConfig = {
   'Grups': { icon: 'users', desc: 'Grups de classe.' },
   'Usuaris': { icon: 'user-plus', desc: 'Alumnat.' }
 };
-
 const tabs = Object.keys(tabConfig);
-let selectedModulId = null;
-let selectedProjectId = null;
 
 function renderTabs() {
   const T = $('#tabs'); if (!T) return;
@@ -213,7 +214,14 @@ function curriculumView() {
                 <span class="unit">%</span>
               </div>
             </div>
-            <button class="btn-icon-danger" onclick="del('ras',${ra.id})"><i data-lucide="trash-2"></i></button>
+            <div style="display:flex; gap: 4px">
+              <button class="secondary mini" onclick="editRA(${ra.id})" title="Editar RA (Nom, Codi...)">
+                <i data-lucide="edit-2"></i>
+              </button>
+              <button class="btn-icon-danger" onclick="del('ras',${ra.id})" title="Esborrar RA">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>
           </div>
           <div class="ra-desc-box">
              <p class="desc-tiny" style="margin:0; font-weight:500;">${ra.descripcio || 'Sense descripció.'}</p>
@@ -371,10 +379,9 @@ function weightingView(pid) {
   const currentRA = ras.find(r => r.id == S.selectedRaIdWeight);
   const casOfRA = (S.cas || []).filter(c => c.ra_id == S.selectedRaIdWeight);
 
-  // Càlcul de Cobertura Global del Mòdul (Suma de pesos de Currículum dels RA vinculats)
-  const rasAmbGomet = ras.filter(r => p_ras.some(pr => pr.ra_id == r.id));
-  const pesCurrAcumulat = rasAmbGomet.reduce((acc, r) => acc + (Number(r.pes)||0), 0);
-  const pesCurrRestant = 100 - pesCurrAcumulat;
+  // Càlcul del pes TOTAL assignat a aquesta ACTIVITAT (Suma de pesos de projecte_ra)
+  const pesProjecteAcumulat = p_ras.reduce((acc, pr) => acc + (Number(pr.pes)||0), 0);
+  const pesProjecteRestant = 100 - pesProjecteAcumulat;
 
   return `
     <div class="card" style="margin-top: 32px; border-top: 4px solid var(--primary); animation: slideUp 0.3s ease">
@@ -382,11 +389,16 @@ function weightingView(pid) {
         <div>
           <h2 style="margin:0"><i data-lucide="layers"></i> Configuració de: <strong>${p.nom}</strong></h2>
           <div style="display:flex; gap:16px; margin-top:8px">
-            <span class="pill ${pesCurrAcumulat > 100 ? 'danger' : 'info'}" style="font-size:11px">Acumulat RA: <strong>${pesCurrAcumulat}%</strong></span>
-            <span class="pill ${pesCurrRestant < 0 ? 'danger' : 'secondary'}" style="font-size:11px">Resten: <strong>${pesCurrRestant}%</strong></span>
+            <span class="pill ${pesProjecteAcumulat > 100.1 ? 'danger' : (pesProjecteAcumulat > 99.9 ? 'success' : 'info')}" style="font-size:11px">Total Projecte: <strong>${fmt(pesProjecteAcumulat)}%</strong></span>
+            <span class="pill ${pesProjecteRestant < -0.1 ? 'danger' : (pesProjecteRestant < 0.1 ? 'success' : 'secondary')}" style="font-size:11px">Resta repartir: <strong>${fmt(pesProjecteRestant)}%</strong></span>
           </div>
         </div>
-        <button class="secondary mini" onclick="S.selectedProjectIdWeight=null;render()"><i data-lucide="x"></i> Tancar</button>
+        <div style="display:flex; gap:8px">
+          <button class="secondary mini" onclick="api('/api/ras/'+S.selectedRaIdWeight+'/normalitzar_projectes', {method:'POST'}).then(load)" title="Ajusta automàticament els pesos d'aquest RA en tots els projectes al 100%">
+            <i data-lucide="maximize"></i> Ajustar RA al 100%
+          </button>
+          <button class="secondary mini" onclick="S.selectedProjectIdWeight=null;render()"><i data-lucide="x"></i> Tancar</button>
+        </div>
       </header>
       
       <div class="grid" style="grid-template-columns: 300px 1fr; gap:32px">
@@ -394,11 +406,8 @@ function weightingView(pid) {
         <div class="ra-selector-list">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
             <h3 style="margin:0">RAs del Mòdul</h3>
-            <span class="desc-tiny">Resta per assignar</span>
           </div>
           ${ras.map(r => {
-            const totalAcomulatRA = (S.projecte_ra || []).filter(pr => pr.ra_id == r.id).reduce((a, b) => a + (Number(b.pes)||0), 0);
-            const manca = 100 - totalAcomulatRA;
             const isLinked = p_ras.some(pr => pr.ra_id == r.id);
             
             return `
@@ -411,9 +420,6 @@ function weightingView(pid) {
                         <strong>${r.codi}</strong>
                         ${isLinked ? '<span class="status-dot green" style="margin-left:8px" title="Avaluat en aquesta activitat"></span>' : ''}
                       </div>
-                      <span class="badge ${manca < 0 ? 'danger' : (manca === 0 ? 'success' : 'secondary')}" style="font-size:10px">
-                        ${manca < 0 ? '⚠️ '+Math.abs(manca)+'%' : (manca === 0 ? 'Complet' : manca+'% rest.')}
-                      </span>
                     </div>
                   </div>
                   <i data-lucide="chevron-right" style="width:16px; opacity:0.5"></i>
@@ -434,20 +440,14 @@ function weightingView(pid) {
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px">
                 <h3 style="margin:0">Criteris de ${currentRA.codi}</h3>
                 <div style="display:flex; align-items:center; gap:10px">
-                  <label style="margin:0; font-weight:600; font-size:13px; color: #475569">Pes en aquesta activitat:</label>
+                  <label style="margin:0; font-weight:600; font-size:13px; color: #475569">Pes d'aquest RA en l'activitat:</label>
                   <div style="background: white; border: 2px solid var(--primary); padding: 4px 12px; border-radius: 8px; display:flex; align-items:center; gap:4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05)">
-                    <input type="number" value="${p_ras.find(pr=>pr.ra_id==currentRA.id)?.pes || 0}" 
+                    <input type="number" min="0" max="100" value="${p_ras.find(pr=>pr.ra_id==currentRA.id)?.pes || 0}" 
                            style="width:80px; border:none; background:transparent; font-weight:800; color:var(--primary); text-align:center; outline:none; font-size: 16px" 
-                           onchange="updateRAWeight(${pid}, ${currentRA.id}, this.value)">
+                           onchange="updateRAWeight(${pid}, ${currentRA.id}, Math.max(0, this.value))">
                     <span style="font-weight:800; color:var(--primary); font-size: 16px">%</span>
                   </div>
                 </div>
-              </div>
-              <div style="display:flex; justify-content:flex-end; font-size: 12px; gap: 15px">
-                 <span style="color: ${totalRA > 100 ? '#ef4444' : '#64748b'}">Total acumulat al RA: <strong>${totalRA}%</strong></span>
-                 <span style="color: ${remanent < 0 ? '#ef4444' : (remanent === 0 ? '#10b981' : '#64748b')}">
-                   ${remanent < 0 ? `⚠️ T'has passat un <strong>${Math.abs(remanent)}%</strong>` : (remanent === 0 ? '✅ RA Completat (100%)' : `Resten: <strong>${remanent}%</strong>`)}
-                 </span>
               </div>
             </div>
             
@@ -486,16 +486,40 @@ async function updateRAWeight(pid, raid, pes) {
   } else {
     await create('projecte_ra', { projecte_id: pid, ra_id: raid, pes });
   }
+  // Repartir pesos de CA automàticament
+  await distributeCAWeights(pid, raid, pes);
   await load();
 }
 
 async function toggleCAWeight(pid, caid, linkedId) {
+  const raId = S.selectedRaIdWeight;
+  const p_ra = S.projecte_ra.find(pr => pr.projecte_id == pid && pr.ra_id == raId);
+  const raWeight = p_ra ? Number(p_ra.pes) : 0;
+
   if (linkedId) {
     await del('projecte_ca', linkedId);
   } else {
     await create('projecte_ca', { projecte_id: pid, ca_id: caid, pes: 0 });
   }
+  
+  await distributeCAWeights(pid, raId, raWeight);
   await load();
+}
+
+async function distributeCAWeights(pid, raid, raWeight) {
+  // Obtenir tots els CA del projecte per a aquest RA
+  // Hem de carregar de S perquè 'load()' encara no s'ha cridat (o sí, però necessitem l'estat fresc)
+  // Per seguretat, fem-ho a través d'una petició directa o esperem al següent 'load'
+  // Però aquí millor ho fem directament.
+  const data = await api('/api/projecte_ca');
+  const linkedCAs = data.filter(pc => pc.projecte_id == pid && S.cas.find(c => c.id == pc.ca_id && c.ra_id == raid));
+  
+  if (linkedCAs.length > 0) {
+    const individualWeight = Number(raWeight) / linkedCAs.length;
+    for (const lca of linkedCAs) {
+      await api(`/api/projecte_ca/${lca.id}`, { method: 'PUT', body: JSON.stringify({ pes: individualWeight }) });
+    }
+  }
 }
 
 async function saveProject() {
@@ -511,27 +535,48 @@ async function saveProject() {
 }
 
 function notesView() {
-  if (!selectedProjectId && S.projectes?.length) selectedProjectId = S.projectes[0].id;
-  const projecte = S.projectes?.find(p => p.id == selectedProjectId);
-  const alumnes = S.alumnes || [];
+  const mods = S.moduls || [];
+  if (!selectedModulId && mods.length) selectedModulId = mods[0].id;
+
+  const allProjs = S.projectes || [];
+  const projs = allProjs.filter(p => p.modul_id == selectedModulId);
+  
+  // Si canviem de mòdul i el projecte seleccionat ja no hi és, l'actualitzem
+  if (selectedProjectId && !projs.find(p => p.id == selectedProjectId)) {
+    selectedProjectId = projs.length ? projs[0].id : null;
+  }
+  const pid = selectedProjectId || (projs.length ? projs[0].id : null);
+  if (!selectedProjectId && pid) selectedProjectId = pid;
+  const projecte = projs.find(p => p.id == pid);
+
+  const gid = selectedGrupId || (S.grups?.length ? S.grups[0].id : null);
+  if (!selectedGrupId && gid) selectedGrupId = gid;
+
+  const grups = S.grups || [];
+  const alumnes = (S.alumnes || []).filter(a => a.grup_id == gid);
   const notes = new Map((S.notes_projecte || []).map(n => [`${n.alumne_id}-${n.projecte_id}`, n]));
   
   return `
     <div class="card" style="margin-bottom: 24px">
-      <div style="display:flex; gap: 16px; align-items:center;">
-        <div style="flex:1">
-          <label>Activitat a avaluar</label>
-          <select onchange="selectedProjectId=this.value;render()" style="margin:0">${opts(S.projectes)}</select>
+      <div style="display:flex; gap: 16px; align-items:center; flex-wrap:wrap">
+        <div style="flex:1; min-width:200px">
+          <label>Mòdul</label>
+          <select onchange="selectedModulId=this.value;selectedProjectId=null;render()" style="margin:0">${opts(mods, 'codi', selectedModulId)}</select>
         </div>
-        <div style="margin-top:20px">
-           <span class="pill" style="background:var(--primary-light); color:var(--primary)">${projecte?.tipus_nom || 'General'}</span>
+        <div style="flex:1; min-width:200px">
+          <label>Activitat a avaluar</label>
+          <select onchange="selectedProjectId=this.value;render()" style="margin:0">${projs.length ? opts(projs, 'nom', pid) : '<option value="">Sense activitats</option>'}</select>
+        </div>
+        <div style="flex:1; min-width:200px">
+          <label>Grup d'alumnes</label>
+          <select onchange="selectedGrupId=this.value;render()" style="margin:0">${opts(grups, 'nom', gid)}</select>
         </div>
       </div>
     </div>
 
     ${wrap('Matriu de qualificacions', `
-      <div class="recent-activity-table">
-        <table>
+      <div class="table-scroll">
+        <table class="recent-activity-table">
           <thead>
             <tr>
               <th>Alumne</th>
@@ -540,8 +585,8 @@ function notesView() {
             </tr>
           </thead>
           <tbody>
-            ${alumnes.map(a => {
-              const n = notes.get(`${a.id}-${selectedProjectId}`);
+            ${pid ? (alumnes.map(a => {
+              const n = notes.get(`${a.id}-${pid}`);
               const notaVal = n?.nota !== undefined ? n.nota : '';
               return `
                 <tr>
@@ -554,16 +599,16 @@ function notesView() {
                   <td style="text-align:center">
                     <input type="number" step="0.1" min="0" max="10" value="${notaVal}" 
                       class="premium-input" style="text-align:center; width:80px; border:1px solid #e2e8f0; border-radius:8px"
-                      onchange="saveNota(${a.id},${selectedProjectId},this.value)">
+                      onchange="saveNota(${a.id},${pid},this.value)">
                   </td>
                   <td>
                     <input value="${n?.observacions||''}" placeholder="Escriu un comentari..." 
                       style="margin:0; border:none; background:#f8fafc; font-size:13px"
-                      onchange="saveNota(${a.id},${selectedProjectId},null,this.value)">
+                      onchange="saveNota(${a.id},${pid},null,this.value)">
                   </td>
                 </tr>
               `;
-            }).join('') || '<tr><td colspan="3" style="text-align:center; padding:40px">Crea alumnes primer.</td></tr>'}
+            }).join('') || '<tr><td colspan="3" style="text-align:center; padding:40px">No hi ha alumnes en aquest grup.</td></tr>') : '<tr><td colspan="3" style="text-align:center; padding:40px">Selecciona una activitat primer.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -572,21 +617,34 @@ function notesView() {
 }
 
 async function saveNota(aid, pid, nota, obs) {
+  if (!pid) return;
   const current = (S.notes_projecte || []).find(n => n.alumne_id == aid && n.projecte_id == pid);
   const data = { alumne_id: aid, projecte_id: pid, nota: nota !== null ? nota : (current?.nota||''), observacions: obs !== null ? obs : (current?.observacions||'') };
   await api('/api/notes_projecte/upsert', { method:'POST', body:JSON.stringify(data) });
-  await load();
+  // No cridem a load() per no refrescar tota la UI i perdre el focus del teclat, només actualitzem S localment
+  const idx = S.notes_projecte.findIndex(n => n.alumne_id == aid && n.projecte_id == pid);
+  if (idx !== -1) S.notes_projecte[idx] = { ...S.notes_projecte[idx], ...data };
+  else S.notes_projecte.push(data);
+  toast('Nota guardada');
 }
 
 function resultatsMatrixView() {
-  const ras = S.ras || [];
+  const mods = S.moduls || [];
+  if (!selectedModulId && mods.length) selectedModulId = mods[0].id;
+  
+  const ras = (S.ras || []).filter(r => r.modul_id == selectedModulId);
+  const notesCalculades = S.notes_ra_calculades || [];
+  
   return `
     <div class="card" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center">
       <div>
         <h2 style="margin:0"><i data-lucide="award"></i> Càlcul de resultats</h2>
-        <p class="desc-tiny">Es calcula la mitjana ponderada de cada RA segons les activitats avaluades.</p>
+        <div style="display:flex; gap:12px; margin-top:8px">
+          <select onchange="selectedModulId=this.value;render()" style="margin:0; width:auto">${opts(mods, 'codi')}</select>
+          <p class="desc-tiny" style="margin:0; align-self:center">Es calcula la mitjana ponderada de cada RA segons les activitats avaluades.</p>
+        </div>
       </div>
-      <button onclick="api('/api/recalcular',{method:'POST'}).then(() => { load(); toast('Notes recalculades'); })">
+      <button class="primary" onclick="api('/api/recalcular',{method:'POST'}).then(() => { load(); toast('Notes recalculades'); })">
         <i data-lucide="refresh-cw"></i> Recalcular ara
       </button>
     </div>
@@ -597,18 +655,42 @@ function resultatsMatrixView() {
           <thead>
             <tr>
               <th class="sticky-col">Alumne</th>
-              ${ras.map(r => `<th style="text-align:center">${r.codi}</th>`).join('')}
+              ${ras.map(r => `<th style="text-align:center" title="${r.descripcio}">${r.codi} <br><small>${r.pes}%</small></th>`).join('')}
               <th style="text-align:center; background:#f1f5f9">Final</th>
             </tr>
           </thead>
           <tbody>
-            ${(S.alumnes||[]).map(a => `
+            ${(S.alumnes||[]).map(a => {
+              let sumaFinal = 0;
+              let pesFinalTotal = 0;
+              
+              return `
               <tr>
                 <td class="sticky-col"><strong>${a.cognoms}, ${a.nom}</strong></td>
-                ${ras.map(r => `<td style="text-align:center; color:#94a3b8">—</td>`).join('')}
-                <td style="text-align:center; background:#f8fafc"><strong>—</strong></td>
+                ${ras.map(r => {
+                  const n = notesCalculades.find(nc => nc.alumne_id == a.id && nc.ra_id == r.id);
+                  const nota = n ? Number(n.nota_final) : null;
+                  if (nota !== null) {
+                    sumaFinal += nota * (Number(r.pes) || 0);
+                    pesFinalTotal += (Number(r.pes) || 0);
+                  }
+                  
+                  let cls = '';
+                  if (nota !== null) {
+                    if (nota >= 9) cls = 'excellent';
+                    else if (nota >= 5) cls = 'good';
+                    else cls = 'fail';
+                  }
+                  
+                  return `<td style="text-align:center">
+                    ${nota !== null ? `<span class="nota-badge ${cls}">${fmt(nota)}</span>` : '<span style="color:#cbd5e1">—</span>'}
+                  </td>`;
+                }).join('')}
+                <td style="text-align:center; background:#f8fafc">
+                  <strong>${pesFinalTotal > 0 ? fmt(sumaFinal / 100) : '—'}</strong>
+                </td>
               </tr>
-            `).join('')}
+            `}).join('') || '<tr><td colspan="100" style="text-align:center; padding:40px">No hi ha alumnes o dades per mostrar.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -616,8 +698,138 @@ function resultatsMatrixView() {
   `;
 }
 
+function seguimentView() {
+  const mods = S.moduls || [];
+  if (!selectedModulId && mods.length) selectedModulId = mods[0].id;
+  const projectes = (S.projectes || []).filter(p => p.modul_id == selectedModulId);
+  const notes = S.notes_projecte || [];
+  
+  return `
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div>
+          <h2 style="margin:0"><i data-lucide="layout"></i> Seguiment d'activitats</h2>
+          <p class="desc-tiny">Llençol de notes de totes les activitats del mòdul.</p>
+        </div>
+        <select onchange="selectedModulId=this.value;render()" style="margin:0; width:auto">${opts(mods, 'codi')}</select>
+      </div>
+    </div>
+
+    ${wrap('Matriu de seguiment', `
+      <div class="table-scroll">
+        <table class="recent-activity-table">
+          <thead>
+            <tr>
+              <th class="sticky-col">Alumne</th>
+              ${projectes.map(p => `<th style="text-align:center; font-size:11px" title="${p.nom}">${p.nom.substring(0,10)}${p.nom.length>10?'...':''}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${(S.alumnes||[]).map(a => `
+              <tr>
+                <td class="sticky-col"><strong>${a.cognoms}, ${a.nom}</strong></td>
+                ${projectes.map(p => {
+                  const n = notes.find(nx => nx.alumne_id == a.id && nx.projecte_id == p.id);
+                  const nota = n ? Number(n.nota) : null;
+                  let cls = '';
+                  if (nota !== null) {
+                    if (nota >= 9) cls = 'excellent';
+                    else if (nota >= 5) cls = 'good';
+                    else cls = 'fail';
+                  }
+                  return `<td style="text-align:center">
+                    ${nota !== null ? `<span class="nota-badge ${cls}">${fmt(nota)}</span>` : '<span style="color:#cbd5e1">—</span>'}
+                  </td>`;
+                }).join('')}
+              </tr>
+            `).join('') || '<tr><td colspan="100" style="text-align:center; padding:40px">No hi ha activitats o alumnes.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `, 'layout')}
+  `;
+}
+
+
 function informesView() {
-  return wrap('Informes', `<p>Proximament...</p>`, 'file-text');
+  const alumnes = S.alumnes || [];
+  const mods = S.moduls || [];
+  if (!selectedModulId && mods.length) selectedModulId = mods[0].id;
+  
+  const a = alumnes.find(x => x.id == S.selectedAlumneIdForReport);
+  const ras = (S.ras || []).filter(r => r.modul_id == selectedModulId);
+  const notesRA = (S.notes_ra_calculades || []).filter(n => n.alumne_id == S.selectedAlumneIdForReport);
+  
+  return `
+    <div class="grid">
+      <div class="card">
+        <h2><i data-lucide="user"></i> Selecciona Alumne</h2>
+        <select onchange="S.selectedAlumneIdForReport=this.value;render()">
+          <option value="">— Selecciona —</option>
+          ${opts(alumnes, 'cognoms')}
+        </select>
+        <div style="margin-top:20px">
+          <label>Mòdul per l'informe</label>
+          <select onchange="selectedModulId=this.value;render()">${opts(mods, 'codi')}</select>
+        </div>
+      </div>
+      
+      <div class="wide">
+        ${a ? `
+          <div class="card report-card">
+            <header style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 20px">
+              <div>
+                <h1 style="margin:0; font-size:24px">${a.nom} ${a.cognoms}</h1>
+                <p class="pill" style="margin-top:8px">${a.grup_nom || 'Sense grup'}</p>
+              </div>
+              <div style="text-align:right">
+                <h3 style="margin:0; color:var(--primary)">${mods.find(m=>m.id==selectedModulId)?.nom || ''}</h3>
+                <p class="desc-tiny">Informe d'avaluació detallat</p>
+              </div>
+            </header>
+            
+            <div class="ra-report-list">
+              ${ras.map(r => {
+                const n = notesRA.find(nr => nr.ra_id == r.id);
+                const nota = n ? Number(n.nota_final) : null;
+                const superat = n ? !!n.superat : false;
+                
+                return `
+                  <div class="ra-report-item" style="margin-bottom:24px; padding:16px; border-radius:12px; background: #f8fafc">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+                      <div>
+                        <span class="ra-badge-premium">${r.codi}</span>
+                        <strong>${r.descripcio || 'RA sense descripció'}</strong>
+                      </div>
+                      <div class="nota-badge ${nota >= 5 ? 'good' : (nota !== null ? 'fail' : 'secondary')}" style="font-size:16px; padding: 8px 16px">
+                        ${nota !== null ? fmt(nota) : '—'}
+                      </div>
+                    </div>
+                    <div style="font-size:12px; color:#64748b">
+                      Pes del RA en el mòdul: ${r.pes}% | Estat: <strong>${nota === null ? 'Pendent' : (superat ? 'SUPERAT' : 'NO SUPERAT')}</strong>
+                    </div>
+                    <div class="progress-bar-container" style="margin-top:12px; height:6px">
+                      <div class="progress-bar-fill" style="width: ${(nota||0)*10}%"></div>
+                    </div>
+                  </div>
+                `;
+              }).join('') || '<p class="muted">No hi ha RAs definits per aquest mòdul.</p>'}
+            </div>
+            
+            <div style="margin-top:30px; border-top: 1px solid #e2e8f0; padding-top: 20px; text-align:center">
+              <button class="primary" onclick="window.print()"><i data-lucide="printer"></i> Imprimir Informe</button>
+            </div>
+          </div>
+        ` : `
+          <div class="empty-state">
+            <i data-lucide="file-text"></i>
+            <h3>Cap alumne seleccionat</h3>
+            <p>Tria un alumne de la llista per veure el seu informe detallat.</p>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
 }
 
 function grupsView() {
@@ -808,6 +1020,16 @@ async function createTipusActivitat() {
 
 
 
-function seguimentView() { return wrap('Seguiment', `<p>Proximament...</p>`, 'layout'); }
+async function editRA(id) {
+  const ra = S.ras.find(r => r.id == id);
+  if (!ra) return;
+  const codi = prompt('Codi del RA:', ra.codi);
+  if (codi === null) return;
+  const desc = prompt('Descripció del RA:', ra.descripcio);
+  if (desc === null) return;
+  const pes = prompt('Pes del RA (%):', ra.pes);
+  if (pes === null) return;
+  await upd('ras', id, { codi, descripcio: desc, pes: Number(pes) });
+}
 
 document.addEventListener('DOMContentLoaded', load);

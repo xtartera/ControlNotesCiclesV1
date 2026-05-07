@@ -8,42 +8,73 @@ const { parse } = require('csv-parse/sync');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connexió a PostgreSQL
-if (!process.env.DATABASE_URL) {
-  console.error('❌ ERROR: No s\'ha trobat la variable DATABASE_URL.');
-  console.log('💡 Si estàs en local, recorda configurar-la o passar-li al terminal.');
+// Configuració de la base de dades (PostgreSQL per a Render, SQLite per a local)
+const isPg = !!process.env.DATABASE_URL;
+let pool, sqliteDb;
+
+if (isPg) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+  console.log('🌐 Connectat a PostgreSQL (Modus Render)');
+} else {
+  const sqlite3 = require('sqlite3').verbose();
+  sqliteDb = new sqlite3.Database(path.join(__dirname, 'avaluacio.db'));
+  console.log('🏠 Connectat a SQLite local (avaluacio.db)');
 }
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
-});
-
 
 // Inicialització de la base de dades
 async function initDb() {
-  if (!process.env.DATABASE_URL) return;
-  try {
-    const sqlPath = path.join(__dirname, 'sql', 'schema.sql');
-    if (fs.existsSync(sqlPath)) {
-      const sql = fs.readFileSync(sqlPath, 'utf8');
+  const sqlPath = path.join(__dirname, 'sql', 'schema.sql');
+  if (!fs.existsSync(sqlPath)) return;
+  const sql = fs.readFileSync(sqlPath, 'utf8');
+
+  if (isPg) {
+    try {
       await pool.query(sql);
-      console.log('✅ Base de dades inicialitzada correctament');
-    }
-  } catch (err) {
-    console.error('❌ Error inicialitzant la base de dades:', err);
+      console.log('✅ PostgreSQL inicialitzat');
+    } catch (err) { console.error('❌ Error inicialitzant PG:', err.message); }
+  } else {
+    // SQLite necessita separar les comandes per ;
+    const statements = sql.split(';').filter(s => s.trim());
+    sqliteDb.serialize(() => {
+      statements.forEach(s => sqliteDb.run(s));
+    });
+    console.log('✅ SQLite inicialitzat');
   }
 }
 initDb();
 
-
-// Funció genèrica per fer queries
-const query = (text, params) => {
-  return pool.query(text, params).catch(err => {
-    console.error('❌ Error en la query:', text);
-    console.error('Detall:', err.message);
-    throw err;
-  });
+// Funció genèrica per fer queries (Abstracció PG / SQLite)
+const query = (text, params = []) => {
+  if (isPg) {
+    return pool.query(text, params).catch(err => {
+      console.error('❌ Error PG:', text, err.message);
+      throw err;
+    });
+  } else {
+    // Adaptació de sintaxi PG ($1) a SQLite (?)
+    const sqliteSql = text.replace(/\$\d+/g, '?').replace(/RETURNING id/gi, '');
+    
+    return new Promise((resolve, reject) => {
+      const isSelect = sqliteSql.trim().toUpperCase().startsWith('SELECT');
+      if (isSelect) {
+        sqliteDb.all(sqliteSql, params, (err, rows) => {
+          if (err) reject(err);
+          else resolve({ rows });
+        });
+      } else {
+        sqliteDb.run(sqliteSql, params, function(err) {
+          if (err) reject(err);
+          else resolve({ rows: [{ id: this.lastID }], rowCount: this.changes });
+        });
+      }
+    }).catch(err => {
+      console.error('❌ Error SQLite:', sqliteSql, err.message);
+      throw err;
+    });
+  }
 };
 
 app.use(express.json({ limit: '10mb' }));
@@ -169,6 +200,35 @@ app.post('/api/import/curriculum', upload.single('file'), ok(async req => {
   return { ok: true };
 }));
 
+app.post('/api/notes_projecte/upsert', ok(async req => {
+  const { alumne_id, projecte_id, nota, observacions } = req.body;
+  
+  // Intentem fer un UPSERT (Insert or Update)
+  // En PostgreSQL usem ON CONFLICT, en SQLite usem INSERT OR REPLACE o ho fem manualment
+  if (isPg) {
+    const q = `
+      INSERT INTO notes_projecte (alumne_id, projecte_id, nota, observacions)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (alumne_id, projecte_id)
+      DO UPDATE SET nota = EXCLUDED.nota, observacions = EXCLUDED.observacions
+      RETURNING id
+    `;
+    const r = await query(q, [alumne_id, projecte_id, nota, observacions]);
+    return { id: r.rows[0].id };
+  } else {
+    // SQLite manual upsert
+    const existing = (await query('SELECT id FROM notes_projecte WHERE alumne_id=$1 AND projecte_id=$2', [alumne_id, projecte_id])).rows[0];
+    if (existing) {
+      await query('UPDATE notes_projecte SET nota=$1, observacions=$2 WHERE id=$3', [nota, observacions, existing.id]);
+      return { id: existing.id };
+    } else {
+      const r = await query('INSERT INTO notes_projecte (alumne_id, projecte_id, nota, observacions) VALUES ($1, $2, $3, $4)', [alumne_id, projecte_id, nota, observacions]);
+      return { id: r.rows[0].id };
+    }
+  }
+}));
+
+
 app.post('/api/recalcular', ok(async () => {
   await query('DELETE FROM notes_ra_calculades');
   const alumnes = (await query('SELECT * FROM alumnes')).rows;
@@ -193,6 +253,9 @@ app.post('/api/recalcular', ok(async () => {
       }
     }
   }
+  return { ok: true };
+}));
+
 app.post('/api/projectes/:id/normalitzar', ok(async (req) => {
   const { id } = req.params;
   // Normalitzar pesos de RA per aquesta activitat (o millor, per als RA que toca aquesta activitat)
