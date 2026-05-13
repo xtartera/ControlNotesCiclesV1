@@ -316,9 +316,13 @@ function activitatsView() {
             <label>Tipus d'activitat</label>
             <select id="pt" style="margin:0">${opts(S.tipus_activitat)}</select>
           </div>
-          <div style="flex: 2; min-width: 300px;">
+          <div style="flex: 2; min-width: 250px;">
             <label>Nom de l'activitat</label>
             <input id="pn" placeholder="Ex: Projecte Final" style="margin:0" value="${S.editingProjectId ? (S.projectes.find(p=>p.id==S.editingProjectId)?.nom||'') : ''}">
+          </div>
+          <div style="flex: 0 0 100px;">
+            <label>Pes Global (%)</label>
+            <input type="number" id="pg" style="margin:0" value="${S.editingProjectId ? (S.projectes.find(p=>p.id==S.editingProjectId)?.pes_global||0) : 0}">
           </div>
           <div style="display:flex; gap:8px;">
             <button class="primary" onclick="saveProject()">
@@ -337,6 +341,7 @@ function activitatsView() {
                 <tr>
                   <th>Activitat</th>
                   <th>Tipus</th>
+                  <th style="text-align:center">Pes Global</th>
                   <th style="text-align:right">Accions</th>
                 </tr>
               </thead>
@@ -345,6 +350,7 @@ function activitatsView() {
                   <tr class="${S.selectedProjectIdWeight == p.id ? 'selected-row' : ''}">
                     <td><strong>${p.nom}</strong></td>
                     <td><span class="type-tag">${p.tipus_nom || 'General'}</span></td>
+                    <td style="text-align:center"><strong>${fmt(p.pes_global)}%</strong></td>
                     <td style="text-align:right; white-space:nowrap">
                       <button class="primary mini" onclick="S.selectedProjectIdWeight=${p.id};render()" title="Configurar pesos RA/CA">
                         <i data-lucide="scale"></i> Ponderar
@@ -524,7 +530,12 @@ async function distributeCAWeights(pid, raid, raWeight) {
 
 async function saveProject() {
   const id = S.editingProjectId;
-  const data = { modul_id: num('pm'), tipus_id: num('pt'), nom: val('pn') };
+  const data = { 
+    modul_id: num('pm'), 
+    tipus_id: num('pt'), 
+    nom: val('pn'),
+    pes_global: num('pg')
+  };
   if (id) {
     await upd('projectes', id, data);
     S.editingProjectId = null;
@@ -632,16 +643,43 @@ function resultatsMatrixView() {
   const mods = S.moduls || [];
   if (!selectedModulId && mods.length) selectedModulId = mods[0].id;
   
-  const ras = (S.ras || []).filter(r => r.modul_id == selectedModulId);
+  const ras = (S.ras || []).filter(r => Number(r.modul_id) === Number(selectedModulId));
   const notesCalculades = S.notes_ra_calculades || [];
+  const p_ras = S.projecte_ra || [];
+  const projs = S.projectes || [];
+  
+  const raStats = {};
+  let totalModuleEvaluated = 0;
+
+  ras.forEach(r => {
+    // Calcularem el pes global d'aquest RA basat en les activitats:
+    // PesGlobalRA = Sum( Projecte.PesGlobal * ProjecteRA.Pes / 100 )
+    let calculatedGlobalWeight = 0;
+    
+    // Filtrem totes les vinculacions d'aquest RA
+    const links = p_ras.filter(pr => Number(pr.ra_id) === Number(r.id));
+    
+    links.forEach(link => {
+      const p = projs.find(px => px.id == link.projecte_id);
+      if (p) {
+        calculatedGlobalWeight += (Number(p.pes_global) || 0) * (Number(link.pes) || 0) / 100;
+      }
+    });
+
+    // Cobertura d'activitats per aquest RA (per saber si les activitats sumen 100% de l'avaluació de l'RA)
+    const cov = links.reduce((acc, pr) => acc + (Number(pr.pes)||0), 0);
+    
+    raStats[r.id] = { cov, realWeight: calculatedGlobalWeight, raWeight: Number(r.pes) || 0 };
+    totalModuleEvaluated += calculatedGlobalWeight;
+  });
   
   return `
     <div class="card" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center">
       <div>
         <h2 style="margin:0"><i data-lucide="award"></i> Càlcul de resultats</h2>
         <div style="display:flex; gap:12px; margin-top:8px">
-          <select onchange="selectedModulId=this.value;render()" style="margin:0; width:auto">${opts(mods, 'codi')}</select>
-          <p class="desc-tiny" style="margin:0; align-self:center">Es calcula la mitjana ponderada de cada RA segons les activitats avaluades.</p>
+          <select onchange="selectedModulId=this.value;render()" style="margin:0; width:auto">${opts(mods, 'codi', selectedModulId)}</select>
+          <p class="desc-tiny" style="margin:0; align-self:center">Ponderació global: <strong>${fmt(totalModuleEvaluated)}%</strong> del mòdul avaluat.</p>
         </div>
       </div>
       <button class="primary" onclick="api('/api/recalcular',{method:'POST'}).then(() => { load(); toast('Notes recalculades'); })">
@@ -655,8 +693,25 @@ function resultatsMatrixView() {
           <thead>
             <tr>
               <th class="sticky-col">Alumne</th>
-              ${ras.map(r => `<th style="text-align:center" title="${r.descripcio}">${r.codi} <br><small>${r.pes}%</small></th>`).join('')}
-              <th style="text-align:center; background:#f1f5f9">Final</th>
+              ${ras.map(r => {
+                const stats = raStats[r.id];
+                const covCls = stats.cov > 100.1 ? 'text-danger' : (stats.cov < 99.9 ? 'text-warning' : 'text-success');
+                return `
+                  <th style="text-align:center" title="${r.descripcio}">
+                    ${r.codi} <br>
+                    <small title="Pes calculat des de les activitats" style="color:var(--primary); font-weight:800">
+                      ${fmt(stats.realWeight)}%
+                    </small><br>
+                    <small class="${covCls}" style="font-size:10px" title="Suma de pesos interns d'aquest RA en les activitats">
+                      Cov: ${fmt(stats.cov)}%
+                    </small>
+                  </th>
+                `;
+              }).join('')}
+              <th style="text-align:center; background:#f1f5f9">
+                Final<br>
+                <small>${fmt(totalModuleEvaluated)}%</small>
+              </th>
             </tr>
           </thead>
           <tbody>

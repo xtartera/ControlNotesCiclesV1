@@ -233,18 +233,29 @@ app.post('/api/recalcular', ok(async () => {
   await query('DELETE FROM notes_ra_calculades');
   const alumnes = (await query('SELECT * FROM alumnes')).rows;
   const ras = (await query('SELECT * FROM ras WHERE actiu=1')).rows;
-  const allNotes = (await query('SELECT n.*, pr.pes, pr.ra_id, t.requereix_minim, t.limita_ra, t.nota_minima as t_min FROM notes_projecte n JOIN projecte_ra pr ON pr.projecte_id=n.projecte_id JOIN projectes p ON p.id=n.projecte_id LEFT JOIN tipus_activitat t ON t.id=p.tipus_id')).rows;
+  const allNotes = (await query(`
+    SELECT n.*, pr.pes as ra_pes_in_proj, pr.ra_id, p.pes_global as proj_pes_global, 
+           t.requereix_minim, t.limita_ra, t.nota_minima as t_min 
+    FROM notes_projecte n 
+    JOIN projecte_ra pr ON pr.projecte_id=n.projecte_id 
+    JOIN projectes p ON p.id=n.projecte_id 
+    LEFT JOIN tipus_activitat t ON t.id=p.tipus_id
+  `)).rows;
 
   for (const a of alumnes) {
     for (const ra of ras) {
-      const notes = allNotes.filter(n => n.alumne_id == a.id && n.ra_id == ra.id);
-      let total = 0, pesTotal = 0, bloq = 0;
+      const notes = allNotes.filter(n => Number(n.alumne_id) === Number(a.id) && Number(n.ra_id) === Number(ra.id));
+      let weightedSum = 0, totalWeight = 0, bloq = 0;
+      
       for (const n of notes) {
-        total += Number(n.nota) * Number(n.pes);
-        pesTotal += Number(n.pes);
+        // Pes real de l'activitat per a aquest RA = Pes Global Projecte * Pes RA en Projecte
+        const w = (Number(n.proj_pes_global) || 0) * (Number(n.ra_pes_in_proj) || 0);
+        weightedSum += Number(n.nota) * w;
+        totalWeight += w;
         if (n.requereix_minim && n.limita_ra && Number(n.nota) < Number(n.t_min || 5)) bloq = 1;
       }
-      const calc = pesTotal > 0 ? total / pesTotal : null;
+      
+      const calc = totalWeight > 0 ? weightedSum / totalWeight : null;
       let final = calc;
       let superat = (calc !== null && calc >= (ra.nota_minima || 5)) ? 1 : 0;
       if (calc !== null && bloq && calc >= 5) { final = 4; superat = 0; }
